@@ -31,7 +31,7 @@ use pocketmine\network\mcpe\protocol\ItemStackRequestPacket;
 use pocketmine\network\mcpe\protocol\PlayerActionPacket;
 use pocketmine\network\mcpe\protocol\PlayerAuthInputPacket;
 use pocketmine\network\mcpe\protocol\types\inventory\UseItemOnEntityTransactionData;
-use pocketmine\network\mcpe\protocol\types\PlayerActionType;
+use pocketmine\network\mcpe\protocol\types\PlayerAction;
 use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
 use pocketmine\network\mcpe\protocol\types\inventory\stackrequest\CraftCreativeStackRequestAction;
 use pocketmine\Server;
@@ -266,15 +266,15 @@ class PacketListener implements Listener {
 
             // Check for break-related actions
             $isBreakAction = in_array($action, [
-                PlayerActionType::START_BREAK,
-                PlayerActionType::ABORT_BREAK,
-                PlayerActionType::STOP_BREAK,
-                PlayerActionType::CRACK_BREAK,
-                PlayerActionType::CREATIVE_PLAYER_DESTROY_BLOCK
+                PlayerAction::START_BREAK,
+                PlayerAction::ABORT_BREAK,
+                PlayerAction::STOP_BREAK,
+                PlayerAction::CRACK_BREAK,
+                PlayerAction::CREATIVE_PLAYER_DESTROY_BLOCK
             ], true);
 
             // Only flag creative_player_destroy_block in non-creative
-            if ($action === PlayerActionType::CREATIVE_PLAYER_DESTROY_BLOCK) {
+            if ($action === PlayerAction::CREATIVE_PLAYER_DESTROY_BLOCK) {
                 $badPacketC->process($oomphPlayer, true);
             }
         }
