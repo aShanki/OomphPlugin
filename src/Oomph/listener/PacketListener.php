@@ -209,6 +209,13 @@ class PacketListener implements Listener {
                     if ($reachB instanceof ReachB) {
                         $reachB->check($oomphPlayer, $target);
                     }
+
+                    // HitboxA: Validate client-reported click position against entity hitbox
+                    $hitboxA = $dm->get("HitboxA");
+                    if ($hitboxA instanceof HitboxA) {
+                        $clickPos = $transactionData->getClickPosition();
+                        $hitboxA->check($oomphPlayer, $target, $clickPos);
+                    }
                 }
             }
         }
@@ -274,23 +281,21 @@ class PacketListener implements Listener {
     }
 
     private function handleInteract(InteractPacket $packet, OomphPlayer $oomphPlayer): void {
-        $dm = $oomphPlayer->getDetectionManager();
+        // InteractPacket ACTION_MOUSEOVER is essentially spam from the client
+        // (sent when changing held item due to Mojang hacks) - ignore it
+        //
+        // HitboxA detection is handled in handleInventoryTransaction() using
+        // UseItemOnEntityTransactionData::getClickPosition() which provides
+        // the actual client-reported click position on the entity hitbox
+        //
+        // InteractPacket only has: action, targetActorRuntimeId (no position data)
 
-        // HitboxA: Validate client-reported interaction position
         if ($packet->action === InteractPacket::ACTION_MOUSEOVER) {
-            // Get the target entity position from packet
-            $targetPos = $packet->target;
-
-            if ($targetPos !== null) {
-                $player = $oomphPlayer->getPlayer();
-                $world = $player->getWorld();
-
-                // Try to get the entity at the reported position
-                // Note: InteractPacket has target position, not entity ID for MOUSEOVER
-                // We would need entity tracking to validate properly
-                // For now, this serves as a placeholder for HitboxA integration
-            }
+            return; // Ignore mouseover spam
         }
+
+        // For ACTION_OPEN_INVENTORY, we could track if player opens inventory
+        // while targeting an entity, but this isn't useful for anticheat
     }
 
     private function handleAnimate(AnimatePacket $packet, OomphPlayer $oomphPlayer): void {
