@@ -91,6 +91,7 @@ class MovementComponent {
 
     /**
      * Get the rotation delta (yaw, pitch)
+     * @return array{yaw: float, pitch: float}
      */
     public function getRotationDelta(): array {
         return [

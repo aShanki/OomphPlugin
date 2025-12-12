@@ -40,14 +40,14 @@ class Raycast {
         $stepZ = $dz > 0 ? 1 : ($dz < 0 ? -1 : 0);
 
         // Distance to next voxel boundary
-        $tMaxX = $dx != 0 ? self::calculateInitialT($start->x, $stepX, $dx) : PHP_FLOAT_MAX;
-        $tMaxY = $dy != 0 ? self::calculateInitialT($start->y, $stepY, $dy) : PHP_FLOAT_MAX;
-        $tMaxZ = $dz != 0 ? self::calculateInitialT($start->z, $stepZ, $dz) : PHP_FLOAT_MAX;
+        $tMaxX = $dx !== 0.0 ? self::calculateInitialT($start->x, $stepX, $dx) : PHP_FLOAT_MAX;
+        $tMaxY = $dy !== 0.0 ? self::calculateInitialT($start->y, $stepY, $dy) : PHP_FLOAT_MAX;
+        $tMaxZ = $dz !== 0.0 ? self::calculateInitialT($start->z, $stepZ, $dz) : PHP_FLOAT_MAX;
 
         // Distance to traverse one voxel along each axis
-        $tDeltaX = $dx != 0 ? abs(1.0 / $dx) : PHP_FLOAT_MAX;
-        $tDeltaY = $dy != 0 ? abs(1.0 / $dy) : PHP_FLOAT_MAX;
-        $tDeltaZ = $dz != 0 ? abs(1.0 / $dz) : PHP_FLOAT_MAX;
+        $tDeltaX = $dx !== 0.0 ? abs(1.0 / $dx) : PHP_FLOAT_MAX;
+        $tDeltaY = $dy !== 0.0 ? abs(1.0 / $dy) : PHP_FLOAT_MAX;
+        $tDeltaZ = $dz !== 0.0 ? abs(1.0 / $dz) : PHP_FLOAT_MAX;
 
         // Add starting block
         $blocks[] = new Vector3($x, $y, $z);
@@ -87,13 +87,13 @@ class Raycast {
             $blocks[] = new Vector3($x, $y, $z);
 
             // Break if we've gone too far past the target
-            if (abs($x - $endX) > 1 && $stepX != 0 && (($x > $endX && $stepX > 0) || ($x < $endX && $stepX < 0))) {
+            if (abs($x - $endX) > 1 && $stepX !== 0 && (($x > $endX && $stepX > 0) || ($x < $endX && $stepX < 0))) {
                 break;
             }
-            if (abs($y - $endY) > 1 && $stepY != 0 && (($y > $endY && $stepY > 0) || ($y < $endY && $stepY < 0))) {
+            if (abs($y - $endY) > 1 && $stepY !== 0 && (($y > $endY && $stepY > 0) || ($y < $endY && $stepY < 0))) {
                 break;
             }
-            if (abs($z - $endZ) > 1 && $stepZ != 0 && (($z > $endZ && $stepZ > 0) || ($z < $endZ && $stepZ < 0))) {
+            if (abs($z - $endZ) > 1 && $stepZ !== 0 && (($z > $endZ && $stepZ > 0) || ($z < $endZ && $stepZ < 0))) {
                 break;
             }
         }
@@ -122,7 +122,7 @@ class Raycast {
      * Uses block positions only (no sub-block precision)
      * @param Vector3 $start Starting position
      * @param Vector3 $end Ending position
-     * @param callable $blockCheck Callback that receives Vector3 and returns true if blocked
+     * @param callable(Vector3): bool $blockCheck Callback that receives Vector3 and returns true if blocked
      * @return bool True if line of sight is clear
      */
     public static function hasLineOfSight(Vector3 $start, Vector3 $end, callable $blockCheck): bool {
@@ -141,7 +141,7 @@ class Raycast {
      * Find the first blocking block between two points
      * @param Vector3 $start Starting position
      * @param Vector3 $end Ending position
-     * @param callable $blockCheck Callback that receives Vector3 and returns true if blocked
+     * @param callable(Vector3): bool $blockCheck Callback that receives Vector3 and returns true if blocked
      * @return Vector3|null The first blocking block position, or null if none
      */
     public static function firstBlockingBlock(Vector3 $start, Vector3 $end, callable $blockCheck): ?Vector3 {

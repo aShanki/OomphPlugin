@@ -17,9 +17,13 @@ class EditionFakerC extends Detection {
 
     // Input mode constants
     private const INPUT_MODE_TOUCH = 0;
+    /** @phpstan-ignore classConstant.unused */
     private const INPUT_MODE_MOUSE = 1;
+    /** @phpstan-ignore classConstant.unused */
     private const INPUT_MODE_GAMEPAD = 2;
+    /** @phpstan-ignore classConstant.unused */
     private const INPUT_MODE_MOTION_CONTROLLER = 3;
+    /** @phpstan-ignore classConstant.unused */
     private const INPUT_MODE_GDK = 4; // Added in 1.21.120+
     private const INPUT_MODE_COUNT_OLD = 4; // Pre-1.21.120
     private const INPUT_MODE_COUNT_NEW = 5; // 1.21.120+

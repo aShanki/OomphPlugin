@@ -198,9 +198,9 @@ class ReachA extends Detection {
      */
     private function raycastToAABB(Vector3 $origin, Vector3 $direction, AxisAlignedBB $aabb): ?float {
         // Ray-AABB intersection algorithm
-        $invDirX = $direction->x != 0 ? 1.0 / $direction->x : PHP_FLOAT_MAX;
-        $invDirY = $direction->y != 0 ? 1.0 / $direction->y : PHP_FLOAT_MAX;
-        $invDirZ = $direction->z != 0 ? 1.0 / $direction->z : PHP_FLOAT_MAX;
+        $invDirX = $direction->x !== 0.0 ? 1.0 / $direction->x : PHP_FLOAT_MAX;
+        $invDirY = $direction->y !== 0.0 ? 1.0 / $direction->y : PHP_FLOAT_MAX;
+        $invDirZ = $direction->z !== 0.0 ? 1.0 / $direction->z : PHP_FLOAT_MAX;
 
         $tx1 = ($aabb->minX - $origin->x) * $invDirX;
         $tx2 = ($aabb->maxX - $origin->x) * $invDirX;

@@ -39,6 +39,7 @@ use pocketmine\Server;
 class PacketListener implements Listener {
 
     public function __construct(
+        /** @phpstan-ignore property.onlyWritten */
         private Main $plugin,
         private PlayerManager $playerManager
     ) {}
@@ -280,6 +281,7 @@ class PacketListener implements Listener {
         }
     }
 
+    /** @phpstan-ignore void.pure */
     private function handleInteract(InteractPacket $packet, OomphPlayer $oomphPlayer): void {
         // InteractPacket ACTION_MOUSEOVER is essentially spam from the client
         // (sent when changing held item due to Mojang hacks) - ignore it

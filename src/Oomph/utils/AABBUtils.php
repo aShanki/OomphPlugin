@@ -44,9 +44,9 @@ class AABBUtils {
      * @return float|null Distance to intersection, or null if no intersection
      */
     public static function rayIntersectsAABB(Vector3 $origin, Vector3 $direction, AxisAlignedBB $box): ?float {
-        $dirFracX = $direction->x == 0.0 ? 1e10 : 1.0 / $direction->x;
-        $dirFracY = $direction->y == 0.0 ? 1e10 : 1.0 / $direction->y;
-        $dirFracZ = $direction->z == 0.0 ? 1e10 : 1.0 / $direction->z;
+        $dirFracX = $direction->x === 0.0 ? 1e10 : 1.0 / $direction->x;
+        $dirFracY = $direction->y === 0.0 ? 1e10 : 1.0 / $direction->y;
+        $dirFracZ = $direction->z === 0.0 ? 1e10 : 1.0 / $direction->z;
 
         $t1 = ($box->minX - $origin->x) * $dirFracX;
         $t2 = ($box->maxX - $origin->x) * $dirFracX;

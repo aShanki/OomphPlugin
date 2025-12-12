@@ -59,8 +59,8 @@ class KillauraA extends Detection {
         $maxTickDiff = self::BASE_MAX_TICK_DIFF;
 
         $effectManager = $player->getPlayer()->getEffects();
-        if ($effectManager->has(VanillaEffects::MINING_FATIGUE())) {
-            $effect = $effectManager->get(VanillaEffects::MINING_FATIGUE());
+        $effect = $effectManager->get(VanillaEffects::MINING_FATIGUE());
+        if ($effect !== null) {
             $amplifier = $effect->getAmplifier();
             $maxTickDiff += $amplifier;
         }

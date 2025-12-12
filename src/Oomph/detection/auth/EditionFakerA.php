@@ -18,6 +18,7 @@ class EditionFakerA extends Detection {
     // Device OS constants
     private const DEVICE_OS_ANDROID = 1;
     private const DEVICE_OS_IOS = 2;
+    /** @phpstan-ignore classConstant.unused */
     private const DEVICE_OS_OSX = 3;
     private const DEVICE_OS_WINDOWS_10 = 7;
     private const DEVICE_OS_PLAYSTATION = 11;

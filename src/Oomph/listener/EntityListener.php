@@ -27,6 +27,7 @@ use Oomph\player\PlayerManager;
 class EntityListener implements Listener {
 
     public function __construct(
+        /** @phpstan-ignore property.onlyWritten */
         private Main $plugin,
         private PlayerManager $playerManager
     ) {}
@@ -149,6 +150,7 @@ class EntityListener implements Listener {
 
     /**
      * Handle AddPlayerPacket - another player spawned
+     * @param array<\pocketmine\network\mcpe\NetworkSession> $receivers
      */
     private function handleAddPlayer(AddPlayerPacket $packet, array $receivers): void {
         $runtimeId = $packet->actorRuntimeId;
@@ -180,6 +182,7 @@ class EntityListener implements Listener {
 
     /**
      * Handle AddActorPacket - entity spawned
+     * @param array<\pocketmine\network\mcpe\NetworkSession> $receivers
      */
     private function handleAddActor(AddActorPacket $packet, array $receivers): void {
         $runtimeId = $packet->actorRuntimeId;
@@ -215,6 +218,7 @@ class EntityListener implements Listener {
 
     /**
      * Handle MoveActorAbsolutePacket - entity moved
+     * @param array<\pocketmine\network\mcpe\NetworkSession> $receivers
      */
     private function handleMoveActor(MoveActorAbsolutePacket $packet, array $receivers): void {
         $runtimeId = $packet->actorRuntimeId;
@@ -243,6 +247,7 @@ class EntityListener implements Listener {
 
     /**
      * Handle SetActorMotionPacket - entity velocity changed
+     * @param array<\pocketmine\network\mcpe\NetworkSession> $receivers
      */
     private function handleSetActorMotion(SetActorMotionPacket $packet, array $receivers): void {
         $runtimeId = $packet->actorRuntimeId;
@@ -268,6 +273,7 @@ class EntityListener implements Listener {
 
     /**
      * Handle RemoveActorPacket - entity removed
+     * @param array<\pocketmine\network\mcpe\NetworkSession> $receivers
      */
     private function handleRemoveActor(RemoveActorPacket $packet, array $receivers): void {
         $runtimeId = $packet->actorUniqueId;

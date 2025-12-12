@@ -150,6 +150,8 @@ class EntityDimensions {
     /**
      * Get entity dimensions by type name.
      * Returns [width, height] or defaults to player dimensions if unknown.
+     *
+     * @return array{float, float}
      */
     public static function getDimensions(string $entityType): array {
         return match (strtolower($entityType)) {

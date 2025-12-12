@@ -14,7 +14,9 @@ class ClicksComponent {
     private const HISTORY_SIZE = 20; // 1 second at 20 TPS
 
     // Click history queues (stores 1 or 0 for each tick)
+    /** @var CircularQueue<int> */
     private CircularQueue $clicksLeft;
+    /** @var CircularQueue<int> */
     private CircularQueue $clicksRight;
 
     // Ticks since last click
@@ -69,13 +71,14 @@ class ClicksComponent {
 
     /**
      * Calculate CPS from a click history queue
+     * @param CircularQueue<int> $queue
      */
     private function calculateCPS(CircularQueue $queue): int {
         $clicks = 0;
         $history = $queue->toArray();
 
         foreach ($history as $value) {
-            $clicks += $value;
+            $clicks += (int) $value;
         }
 
         return $clicks;
@@ -171,6 +174,7 @@ class ClicksComponent {
 
     /**
      * Get the left click history queue
+     * @return CircularQueue<int>
      */
     public function getClicksLeftHistory(): CircularQueue {
         return $this->clicksLeft;
@@ -178,6 +182,7 @@ class ClicksComponent {
 
     /**
      * Get the right click history queue
+     * @return CircularQueue<int>
      */
     public function getClicksRightHistory(): CircularQueue {
         return $this->clicksRight;

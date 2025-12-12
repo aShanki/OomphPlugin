@@ -20,6 +20,7 @@ use pocketmine\network\mcpe\protocol\ProtocolInfo;
 class PlayerListener implements Listener {
 
     public function __construct(
+        /** @phpstan-ignore property.onlyWritten */
         private Main $plugin,
         private PlayerManager $playerManager
     ) {}
@@ -34,15 +35,19 @@ class PlayerListener implements Listener {
         $networkSession = $player->getNetworkSession();
         $playerInfo = $networkSession->getPlayerInfo();
 
+        if ($playerInfo === null) {
+            return;
+        }
+
         // Extract device info from extra data
         $extraData = $playerInfo->getExtraData();
 
-        $deviceOS = $extraData["DeviceOS"] ?? 0;
-        $deviceId = $extraData["DeviceId"] ?? "";
-        $deviceModel = $extraData["DeviceModel"] ?? "";
-        $titleId = $extraData["TitleId"] ?? "";
-        $defaultInputMode = $extraData["DefaultInputMode"] ?? 0;
-        $currentInputMode = $extraData["CurrentInputMode"] ?? 0;
+        $deviceOS = isset($extraData["DeviceOS"]) && is_int($extraData["DeviceOS"]) ? $extraData["DeviceOS"] : 0;
+        $deviceId = isset($extraData["DeviceId"]) && is_string($extraData["DeviceId"]) ? $extraData["DeviceId"] : "";
+        $deviceModel = isset($extraData["DeviceModel"]) && is_string($extraData["DeviceModel"]) ? $extraData["DeviceModel"] : "";
+        $titleId = isset($extraData["TitleId"]) && is_string($extraData["TitleId"]) ? $extraData["TitleId"] : "";
+        $defaultInputMode = isset($extraData["DefaultInputMode"]) && is_int($extraData["DefaultInputMode"]) ? $extraData["DefaultInputMode"] : 0;
+        $currentInputMode = isset($extraData["CurrentInputMode"]) && is_int($extraData["CurrentInputMode"]) ? $extraData["CurrentInputMode"] : 0;
 
         // Store device info in OomphPlayer
         $oomphPlayer->setDeviceOS($this->getDeviceOSName($deviceOS));
@@ -58,7 +63,7 @@ class PlayerListener implements Listener {
 
         // EditionFakerA: Check DeviceOS vs TitleID mismatch
         $editionFakerA = $dm->get("EditionFakerA");
-        if ($editionFakerA instanceof EditionFakerA && !empty($titleId)) {
+        if ($editionFakerA instanceof EditionFakerA && $titleId !== "") {
             $editionFakerA->check($oomphPlayer, $deviceOS, $titleId);
         }
 

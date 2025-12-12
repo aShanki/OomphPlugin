@@ -12,6 +12,9 @@ use pocketmine\player\Player;
 class PlayerFlaggedEvent extends Event implements Cancellable {
     use CancellableTrait;
 
+    /**
+     * @param array<string, mixed> $extraData
+     */
     public function __construct(
         private Player $player,
         private string $detectionName,
@@ -36,6 +39,9 @@ class PlayerFlaggedEvent extends Event implements Cancellable {
         return $this->violations;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getExtraData(): array {
         return $this->extraData;
     }

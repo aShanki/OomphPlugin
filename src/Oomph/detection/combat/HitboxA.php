@@ -83,13 +83,4 @@ class HitboxA extends Detection {
             max($aabb->minZ, min($point->z, $aabb->maxZ))
         );
     }
-
-    /**
-     * Check if point is inside AABB
-     */
-    private function isPointInAABB(Vector3 $point, AxisAlignedBB $aabb): bool {
-        return $point->x >= $aabb->minX && $point->x <= $aabb->maxX &&
-               $point->y >= $aabb->minY && $point->y <= $aabb->maxY &&
-               $point->z >= $aabb->minZ && $point->z <= $aabb->maxZ;
-    }
 }

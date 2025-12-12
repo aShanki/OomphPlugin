@@ -130,7 +130,7 @@ class EntityTracker {
         foreach ($this->entities as $runtimeId => $entity) {
             // Check if the most recent historical position is too old
             $history = $entity->getPositionHistory();
-            if (!empty($history)) {
+            if ($history !== []) {
                 $lastHistorical = end($history);
                 if (($currentTick - $lastHistorical->tick) > $maxAge) {
                     $this->removeEntity($runtimeId);
