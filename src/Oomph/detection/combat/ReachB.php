@@ -62,9 +62,20 @@ class ReachB extends Detection {
         $eyeHeight = $player->getPlayer()->getEyeHeight();
         $eyePos = $attackerPos->add(0, $eyeHeight, 0);
 
-        // Get target's current and previous position for interpolation
+        // Get target's current position
         $currentPos = $target->getPosition();
-        $prevPos = $target->getLastLocation() ?? $currentPos;
+
+        // Try to get previous position from entity tracker for lag compensation
+        $prevPos = $currentPos;
+        $entityTracker = $player->getCombatComponent()->getEntityTracker();
+        $trackedEntity = $entityTracker->getEntity($target->getId());
+        if ($trackedEntity !== null) {
+            $history = $trackedEntity->getPositionHistory();
+            if (count($history) >= 2) {
+                // Get second-to-last position for interpolation
+                $prevPos = $history[count($history) - 2]->position;
+            }
+        }
 
         // Get target's bounding box dimensions
         $targetBB = $target->getBoundingBox();
