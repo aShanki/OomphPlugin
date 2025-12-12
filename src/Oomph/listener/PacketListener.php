@@ -149,13 +149,6 @@ class PacketListener implements Listener {
             $badPacketE->process($oomphPlayer, $moveVecX, $moveVecZ);
         }
 
-        // BadPacketF: Validate hotbar slot
-        $badPacketF = $dm->get("BadPacketF");
-        if ($badPacketF instanceof BadPacketF) {
-            $hotbarSlot = $packet->getPlayedSoundVectorId() ?? 0; // Use appropriate field
-            // Note: PM5 may have different method - adjust as needed
-        }
-
         // Update clicks component
         $clicks->update();
 
@@ -277,22 +270,13 @@ class PacketListener implements Listener {
     }
 
     private function handleInteract(InteractPacket $packet, OomphPlayer $oomphPlayer): void {
-        $dm = $oomphPlayer->getDetectionManager();
+        // InteractPacket only has action and actorRuntimeId
+        // HitboxA detection requires position data which isn't available in this packet
+        // HitboxA would need to be triggered from a different packet type or use entity tracking
 
-        // HitboxA: Validate client-reported interaction position
-        if ($packet->action === InteractPacket::ACTION_MOUSEOVER) {
-            // Get the target entity position from packet
-            $targetPos = $packet->target;
-
-            if ($targetPos !== null) {
-                $player = $oomphPlayer->getPlayer();
-                $world = $player->getWorld();
-
-                // Try to get the entity at the reported position
-                // Note: InteractPacket has target position, not entity ID for MOUSEOVER
-                // We would need entity tracking to validate properly
-                // For now, this serves as a placeholder for HitboxA integration
-            }
+        // For now, we just track the interaction for potential future use
+        if ($packet->action === InteractPacket::ACTION_LEAVE_VEHICLE) {
+            // Player left a vehicle - could be used for vehicle-related checks
         }
     }
 
