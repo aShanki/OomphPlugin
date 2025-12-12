@@ -79,9 +79,9 @@ class ReachB extends Detection {
 
         // Get target's bounding box dimensions
         $targetBB = $target->getBoundingBox();
-        $width = $targetBB->getMaxX() - $targetBB->getMinX();
-        $height = $targetBB->getMaxY() - $targetBB->getMinY();
-        $depth = $targetBB->getMaxZ() - $targetBB->getMinZ();
+        $width = $targetBB->maxX - $targetBB->minX;
+        $height = $targetBB->maxY - $targetBB->minY;
+        $depth = $targetBB->maxZ - $targetBB->minZ;
 
         $halfWidth = $width / 2;
         $halfDepth = $depth / 2;
@@ -141,9 +141,9 @@ class ReachB extends Detection {
      */
     private function getClosestPointOnAABB(Vector3 $point, AxisAlignedBB $aabb): Vector3 {
         return new Vector3(
-            max($aabb->getMinX(), min($point->x, $aabb->getMaxX())),
-            max($aabb->getMinY(), min($point->y, $aabb->getMaxY())),
-            max($aabb->getMinZ(), min($point->z, $aabb->getMaxZ()))
+            max($aabb->minX, min($point->x, $aabb->maxX)),
+            max($aabb->minY, min($point->y, $aabb->maxY)),
+            max($aabb->minZ, min($point->z, $aabb->maxZ))
         );
     }
 

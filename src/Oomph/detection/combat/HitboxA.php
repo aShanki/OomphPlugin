@@ -78,9 +78,9 @@ class HitboxA extends Detection {
      */
     private function getClosestPointOnAABB(Vector3 $point, AxisAlignedBB $aabb): Vector3 {
         return new Vector3(
-            max($aabb->getMinX(), min($point->x, $aabb->getMaxX())),
-            max($aabb->getMinY(), min($point->y, $aabb->getMaxY())),
-            max($aabb->getMinZ(), min($point->z, $aabb->getMaxZ()))
+            max($aabb->minX, min($point->x, $aabb->maxX)),
+            max($aabb->minY, min($point->y, $aabb->maxY)),
+            max($aabb->minZ, min($point->z, $aabb->maxZ))
         );
     }
 
@@ -88,8 +88,8 @@ class HitboxA extends Detection {
      * Check if point is inside AABB
      */
     private function isPointInAABB(Vector3 $point, AxisAlignedBB $aabb): bool {
-        return $point->x >= $aabb->getMinX() && $point->x <= $aabb->getMaxX() &&
-               $point->y >= $aabb->getMinY() && $point->y <= $aabb->getMaxY() &&
-               $point->z >= $aabb->getMinZ() && $point->z <= $aabb->getMaxZ();
+        return $point->x >= $aabb->minX && $point->x <= $aabb->maxX &&
+               $point->y >= $aabb->minY && $point->y <= $aabb->maxY &&
+               $point->z >= $aabb->minZ && $point->z <= $aabb->maxZ;
     }
 }

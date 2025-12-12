@@ -132,9 +132,9 @@ class ReachA extends Detection {
             $lerpedPos = $this->lerp($prevPos, $currentPos, $t);
 
             // Create bounding box at interpolated position
-            $width = $targetBB->getMaxX() - $targetBB->getMinX();
-            $height = $targetBB->getMaxY() - $targetBB->getMinY();
-            $depth = $targetBB->getMaxZ() - $targetBB->getMinZ();
+            $width = $targetBB->maxX - $targetBB->minX;
+            $height = $targetBB->maxY - $targetBB->minY;
+            $depth = $targetBB->maxZ - $targetBB->minZ;
 
             $halfWidth = $width / 2;
             $halfDepth = $depth / 2;
@@ -202,12 +202,12 @@ class ReachA extends Detection {
         $invDirY = $direction->y != 0 ? 1.0 / $direction->y : PHP_FLOAT_MAX;
         $invDirZ = $direction->z != 0 ? 1.0 / $direction->z : PHP_FLOAT_MAX;
 
-        $tx1 = ($aabb->getMinX() - $origin->x) * $invDirX;
-        $tx2 = ($aabb->getMaxX() - $origin->x) * $invDirX;
-        $ty1 = ($aabb->getMinY() - $origin->y) * $invDirY;
-        $ty2 = ($aabb->getMaxY() - $origin->y) * $invDirY;
-        $tz1 = ($aabb->getMinZ() - $origin->z) * $invDirZ;
-        $tz2 = ($aabb->getMaxZ() - $origin->z) * $invDirZ;
+        $tx1 = ($aabb->minX - $origin->x) * $invDirX;
+        $tx2 = ($aabb->maxX - $origin->x) * $invDirX;
+        $ty1 = ($aabb->minY - $origin->y) * $invDirY;
+        $ty2 = ($aabb->maxY - $origin->y) * $invDirY;
+        $tz1 = ($aabb->minZ - $origin->z) * $invDirZ;
+        $tz2 = ($aabb->maxZ - $origin->z) * $invDirZ;
 
         $tmin = max(max(min($tx1, $tx2), min($ty1, $ty2)), min($tz1, $tz2));
         $tmax = min(min(max($tx1, $tx2), max($ty1, $ty2)), max($tz1, $tz2));
