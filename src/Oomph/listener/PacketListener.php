@@ -33,7 +33,7 @@ use pocketmine\network\mcpe\protocol\PlayerAuthInputPacket;
 use pocketmine\network\mcpe\protocol\types\inventory\UseItemOnEntityTransactionData;
 use pocketmine\network\mcpe\protocol\types\PlayerAction;
 use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
-use pocketmine\network\mcpe\protocol\types\inventory\stackrequest\CraftCreativeStackRequestAction;
+use pocketmine\network\mcpe\protocol\types\inventory\stackrequest\CreativeCreateStackRequestAction;
 use pocketmine\Server;
 
 class PacketListener implements Listener {
@@ -243,7 +243,7 @@ class PacketListener implements Listener {
             // Check all requests for creative actions
             foreach ($packet->getRequests() as $request) {
                 foreach ($request->getActions() as $action) {
-                    if ($action instanceof CraftCreativeStackRequestAction) {
+                    if ($action instanceof CreativeCreateStackRequestAction) {
                         $isCreativeAction = true;
                         break 2;
                     }

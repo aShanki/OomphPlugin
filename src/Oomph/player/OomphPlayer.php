@@ -282,7 +282,7 @@ class OomphPlayer {
     public function tick(): void {
         $this->movementComponent->update();
         $this->clicksComponent->update();
-        $this->detectionManager->runDetections();
+        $this->detectionManager->runAll($this);
     }
 
     /**
