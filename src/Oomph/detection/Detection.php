@@ -108,7 +108,7 @@ abstract class Detection {
             // $punishEvent = new PlayerPunishmentEvent($player, $this);
             // $punishEvent->call();
             // if (!$punishEvent->isCancelled()) {
-                $player->getPlayer()->kick("Unfair Advantage: " . $this->getName());
+                error_log("Player " . $player->getPlayer()->getName() . " triggered punishment: Unfair Advantage: " . $this->getName());
             // }
         }
     }
