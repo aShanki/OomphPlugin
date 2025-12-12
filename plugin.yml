@@ -1,0 +1,6 @@
+name: OomphPlugin
+version: 1.0.0
+api: 5.0.0
+main: Oomph\Main
+author: Oomph
+description: Military-grade anticheat for PocketMine-MP
