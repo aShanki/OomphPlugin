@@ -1,0 +1,2 @@
+# README
+This is legitimately just a copy of all oomph logic as a plugin, entirely vibecoded. Don't ask for support, you're not getting any. Made for use on NikoNetwork within game instances and nowhere else.
