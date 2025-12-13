@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Oomph\player\component;
 
 use pocketmine\math\Vector3;
+use pocketmine\math\AxisAlignedBB;
 
 /**
  * Tracks player movement state, position, velocity, rotation, and collision flags
@@ -44,13 +45,60 @@ class MovementComponent {
     private bool $collisionY = false;
     private bool $collisionZ = false;
 
-    // Pending actions
+    // Pending actions (legacy - kept for compatibility)
     private ?Vector3 $knockbackVelocity = null;
     private ?Vector3 $pendingTeleport = null;
 
     // Metrics
     private float $fallDistance = 0.0;
     private float $movementSpeed = 0.0;
+
+    // Server-side authoritative state
+    private Vector3 $authPosition;
+    private Vector3 $authVelocity;
+    private Vector3 $authMov;  // velocity before friction/gravity
+
+    // Physics state
+    private float $gravity = 0.08;
+    private float $jumpHeight = 0.42;
+    private float $defaultMovementSpeed = 0.1;
+    private float $airSpeed = 0.02;
+
+    // Jump state
+    private int $jumpDelay = 0;
+    private bool $pressingJump = false;
+    private bool $pressingSneak = false;
+
+    // Knockback state
+    private ?Vector3 $knockback = null;
+    private int $ticksSinceKnockback = 999;
+
+    // Teleport state
+    private ?Vector3 $teleportPos = null;
+    private int $ticksSinceTeleport = 999;
+    private int $remainingTeleportTicks = 0;
+    private bool $teleportSmoothed = false;
+
+    // Collision state (enhanced)
+    private bool $stuckInCollider = false;
+    private bool $penetratedLastFrame = false;
+
+    // Correction state
+    private int $pendingCorrections = 0;
+    private int $ticksSinceCorrection = 999;
+
+    // Supporting block
+    private ?Vector3 $supportingBlockPos = null;
+
+    // Immobility
+    private bool $immobile = false;
+    private bool $noClip = false;
+    private bool $gliding = false;
+    private int $glideBoost = 0;
+
+    // Player size for bounding box
+    private float $width = 0.6;
+    private float $height = 1.8;
 
     public function __construct(Vector3 $initialPosition, float $yaw, float $pitch, float $headYaw) {
         $this->position = clone $initialPosition;
@@ -62,6 +110,11 @@ class MovementComponent {
         $this->headYaw = $headYaw;
         $this->lastYaw = $yaw;
         $this->lastPitch = $pitch;
+
+        // Initialize authoritative state
+        $this->authPosition = clone $initialPosition;
+        $this->authVelocity = new Vector3(0, 0, 0);
+        $this->authMov = new Vector3(0, 0, 0);
     }
 
     /**
@@ -323,5 +376,326 @@ class MovementComponent {
 
     public function getMovementSpeed(): float {
         return $this->movementSpeed;
+    }
+
+    // ========== NEW AUTHORITATIVE MOVEMENT METHODS ==========
+
+    // Authoritative position
+    public function getAuthPosition(): Vector3 {
+        return $this->authPosition;
+    }
+
+    public function setAuthPosition(Vector3 $position): void {
+        $this->authPosition = $position;
+    }
+
+    // Authoritative velocity
+    public function getAuthVelocity(): Vector3 {
+        return $this->authVelocity;
+    }
+
+    public function setAuthVelocity(Vector3 $velocity): void {
+        $this->authVelocity = $velocity;
+    }
+
+    // Authoritative mov (velocity before friction/gravity)
+    public function getAuthMov(): Vector3 {
+        return $this->authMov;
+    }
+
+    public function setAuthMov(Vector3 $mov): void {
+        $this->authMov = $mov;
+    }
+
+    // Physics parameters
+    public function getGravity(): float {
+        return $this->gravity;
+    }
+
+    public function setGravity(float $gravity): void {
+        $this->gravity = $gravity;
+    }
+
+    public function getJumpHeight(): float {
+        return $this->jumpHeight;
+    }
+
+    public function setJumpHeight(float $jumpHeight): void {
+        $this->jumpHeight = $jumpHeight;
+    }
+
+    public function getDefaultMovementSpeed(): float {
+        return $this->defaultMovementSpeed;
+    }
+
+    public function setDefaultMovementSpeed(float $speed): void {
+        $this->defaultMovementSpeed = $speed;
+    }
+
+    public function getAirSpeed(): float {
+        return $this->airSpeed;
+    }
+
+    public function setAirSpeed(float $speed): void {
+        $this->airSpeed = $speed;
+    }
+
+    // Jump delay
+    public function getJumpDelay(): int {
+        return $this->jumpDelay;
+    }
+
+    public function setJumpDelay(int $delay): void {
+        $this->jumpDelay = $delay;
+    }
+
+    public function decrementJumpDelay(): void {
+        if ($this->jumpDelay > 0) {
+            $this->jumpDelay--;
+        }
+    }
+
+    // Pressing states
+    public function isPressingJump(): bool {
+        return $this->pressingJump;
+    }
+
+    public function setPressingJump(bool $pressing): void {
+        $this->pressingJump = $pressing;
+    }
+
+    public function isPressingSneak(): bool {
+        return $this->pressingSneak;
+    }
+
+    public function setPressingSneak(bool $pressing): void {
+        $this->pressingSneak = $pressing;
+    }
+
+    // Knockback
+    public function hasKnockback(): bool {
+        return $this->knockback !== null && $this->ticksSinceKnockback === 0;
+    }
+
+    public function getKnockback(): ?Vector3 {
+        return $this->knockback;
+    }
+
+    public function setKnockback(Vector3 $knockback): void {
+        $this->knockback = $knockback;
+        $this->ticksSinceKnockback = 0;
+    }
+
+    public function consumeKnockback(): void {
+        $this->knockback = null;
+        $this->ticksSinceKnockback++;
+    }
+
+    public function getTicksSinceKnockback(): int {
+        return $this->ticksSinceKnockback;
+    }
+
+    public function incrementTicksSinceKnockback(): void {
+        $this->ticksSinceKnockback++;
+    }
+
+    // Teleport
+    public function hasTeleport(): bool {
+        return $this->teleportPos !== null && $this->ticksSinceTeleport <= $this->remainingTeleportTicks;
+    }
+
+    public function getTeleportPos(): ?Vector3 {
+        return $this->teleportPos;
+    }
+
+    public function setTeleport(Vector3 $pos, bool $smoothed = false, int $ticks = 0): void {
+        $this->teleportPos = $pos;
+        $this->teleportSmoothed = $smoothed;
+        $this->remainingTeleportTicks = $ticks;
+        $this->ticksSinceTeleport = 0;
+    }
+
+    public function consumeTeleport(): void {
+        $this->teleportPos = null;
+        $this->ticksSinceTeleport++;
+    }
+
+    public function isTeleportSmoothed(): bool {
+        return $this->teleportSmoothed;
+    }
+
+    public function getRemainingTeleportTicks(): int {
+        return max(0, $this->remainingTeleportTicks - $this->ticksSinceTeleport);
+    }
+
+    public function getTicksSinceTeleport(): int {
+        return $this->ticksSinceTeleport;
+    }
+
+    public function incrementTicksSinceTeleport(): void {
+        $this->ticksSinceTeleport++;
+    }
+
+    // Collision state
+    public function isStuckInCollider(): bool {
+        return $this->stuckInCollider;
+    }
+
+    public function setStuckInCollider(bool $stuck): void {
+        $this->stuckInCollider = $stuck;
+    }
+
+    public function isPenetratedLastFrame(): bool {
+        return $this->penetratedLastFrame;
+    }
+
+    public function setPenetratedLastFrame(bool $penetrated): void {
+        $this->penetratedLastFrame = $penetrated;
+    }
+
+    // Corrections
+    public function getPendingCorrections(): int {
+        return $this->pendingCorrections;
+    }
+
+    public function incrementPendingCorrections(): void {
+        $this->pendingCorrections++;
+    }
+
+    public function decrementPendingCorrections(): void {
+        if ($this->pendingCorrections > 0) {
+            $this->pendingCorrections--;
+        }
+    }
+
+    public function getTicksSinceCorrection(): int {
+        return $this->ticksSinceCorrection;
+    }
+
+    public function resetTicksSinceCorrection(): void {
+        $this->ticksSinceCorrection = 0;
+    }
+
+    public function incrementTicksSinceCorrection(): void {
+        $this->ticksSinceCorrection++;
+    }
+
+    // Supporting block
+    public function getSupportingBlockPos(): ?Vector3 {
+        return $this->supportingBlockPos;
+    }
+
+    public function setSupportingBlockPos(?Vector3 $pos): void {
+        $this->supportingBlockPos = $pos;
+    }
+
+    // Immobility
+    public function isImmobile(): bool {
+        return $this->immobile;
+    }
+
+    public function setImmobile(bool $immobile): void {
+        $this->immobile = $immobile;
+    }
+
+    public function isNoClip(): bool {
+        return $this->noClip;
+    }
+
+    public function setNoClip(bool $noClip): void {
+        $this->noClip = $noClip;
+    }
+
+    public function isGliding(): bool {
+        return $this->gliding;
+    }
+
+    public function setGliding(bool $gliding): void {
+        $this->gliding = $gliding;
+    }
+
+    public function getGlideBoost(): int {
+        return $this->glideBoost;
+    }
+
+    public function setGlideBoost(int $boost): void {
+        $this->glideBoost = $boost;
+    }
+
+    public function decrementGlideBoost(): void {
+        if ($this->glideBoost > 0) {
+            $this->glideBoost--;
+        }
+    }
+
+    // Bounding box
+    public function getBoundingBox(): AxisAlignedBB {
+        $halfWidth = $this->width / 2.0;
+        return new AxisAlignedBB(
+            $this->position->x - $halfWidth,
+            $this->position->y,
+            $this->position->z - $halfWidth,
+            $this->position->x + $halfWidth,
+            $this->position->y + $this->height,
+            $this->position->z + $halfWidth
+        );
+    }
+
+    public function getWidth(): float {
+        return $this->width;
+    }
+
+    public function setWidth(float $width): void {
+        $this->width = $width;
+    }
+
+    public function getHeight(): float {
+        return $this->height;
+    }
+
+    public function setHeight(float $height): void {
+        $this->height = $height;
+    }
+
+    // Set all collision flags at once
+    public function setCollisions(bool $x, bool $y, bool $z): void {
+        $this->collisionX = $x;
+        $this->collisionY = $y;
+        $this->collisionZ = $z;
+    }
+
+    /**
+     * Reset simulation state (copy client state to server state)
+     */
+    public function reset(): void {
+        $this->authPosition = clone $this->position;
+        $this->authVelocity = clone $this->velocity;
+        $this->authMov = clone $this->velocity;
+    }
+
+    /**
+     * Handle teleport event - resets teleport tracking state
+     */
+    public function onTeleport(): void {
+        $this->teleportPos = $this->position;
+        $this->ticksSinceTeleport = 0;
+        $this->remainingTeleportTicks = 20; // Default teleport grace period
+
+        // Sync auth position with client position on teleport
+        $this->authPosition = clone $this->position;
+        $this->authVelocity = Vector3::zero();
+    }
+
+    /**
+     * Apply knockback velocity from an external source
+     *
+     * @param Vector3 $velocity The knockback velocity to apply
+     */
+    public function applyKnockback(Vector3 $velocity): void {
+        $this->knockback = $velocity;
+        $this->ticksSinceKnockback = 0;
+
+        // Update auth velocity to include knockback
+        $this->authVelocity = $velocity;
     }
 }

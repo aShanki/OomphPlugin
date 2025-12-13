@@ -9,6 +9,9 @@ use pocketmine\player\GameMode;
 use Oomph\player\component\MovementComponent;
 use Oomph\player\component\CombatComponent;
 use Oomph\player\component\ClicksComponent;
+use Oomph\player\correction\CorrectionHandler;
+use Oomph\player\simulation\MovementSimulation;
+use Oomph\cancellation\CancellationManager;
 use Oomph\detection\DetectionManager;
 use Oomph\detection\combat\AutoclickerA;
 use Oomph\detection\combat\AimA;
@@ -60,8 +63,17 @@ class OomphPlayer {
     private CombatComponent $combatComponent;
     private ClicksComponent $clicksComponent;
 
+    // Correction handler for movement corrections
+    private CorrectionHandler $correctionHandler;
+
+    // Cancellation manager for event cancellation
+    private CancellationManager $cancellationManager;
+
     // Detection manager
     private DetectionManager $detectionManager;
+
+    // Movement simulation enabled flag
+    private bool $simulationEnabled = true;
 
     public function __construct(Player $player) {
         $this->player = $player;
@@ -78,6 +90,10 @@ class OomphPlayer {
         );
         $this->combatComponent = new CombatComponent();
         $this->clicksComponent = new ClicksComponent();
+
+        // Initialize correction handler and cancellation manager
+        $this->correctionHandler = new CorrectionHandler($this);
+        $this->cancellationManager = new CancellationManager($this);
 
         // Initialize detection manager
         $this->detectionManager = new DetectionManager($this);
@@ -276,12 +292,58 @@ class OomphPlayer {
         return $this->detectionManager;
     }
 
+    public function getCorrectionHandler(): CorrectionHandler {
+        return $this->correctionHandler;
+    }
+
+    public function getCancellationManager(): CancellationManager {
+        return $this->cancellationManager;
+    }
+
+    /**
+     * Check if movement simulation is enabled
+     */
+    public function isSimulationEnabled(): bool {
+        return $this->simulationEnabled;
+    }
+
+    /**
+     * Enable or disable movement simulation
+     */
+    public function setSimulationEnabled(bool $enabled): void {
+        $this->simulationEnabled = $enabled;
+    }
+
     /**
      * Update all components (should be called each tick)
      */
     public function tick(): void {
         $this->movementComponent->update();
         $this->clicksComponent->update();
+
+        // Run movement simulation if enabled
+        if ($this->simulationEnabled) {
+            MovementSimulation::simulate($this);
+
+            // Check if we need to send a correction
+            $clientPos = $this->movementComponent->getPosition();
+            $serverPos = $this->movementComponent->getAuthPosition();
+
+            if ($this->correctionHandler->shouldCorrect($serverPos, $clientPos)) {
+                $this->correctionHandler->sendCorrection();
+
+                // Notify ReachA of correction
+                $reachA = $this->detectionManager->get("ReachA");
+                if ($reachA instanceof ReachA) {
+                    $reachA->onCorrection();
+                }
+            }
+        }
+
+        // Update correction handler
+        $this->correctionHandler->tick();
+
+        // Run detections
         $this->detectionManager->runAll($this);
     }
 
@@ -290,5 +352,30 @@ class OomphPlayer {
      */
     public function resetTickState(): void {
         $this->combatComponent->reset();
+        $this->cancellationManager->reset();
+    }
+
+    /**
+     * Handle player teleport
+     */
+    public function onTeleport(): void {
+        // Notify movement component
+        $this->movementComponent->onTeleport();
+
+        // Reset correction handler cooldown
+        $this->correctionHandler->resetCooldown();
+
+        // Notify ReachA detection
+        $reachA = $this->detectionManager->get("ReachA");
+        if ($reachA instanceof ReachA) {
+            $reachA->onTeleport();
+        }
+    }
+
+    /**
+     * Handle knockback being applied to player
+     */
+    public function onKnockback(\pocketmine\math\Vector3 $velocity): void {
+        $this->movementComponent->applyKnockback($velocity);
     }
 }

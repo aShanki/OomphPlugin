@@ -6,27 +6,30 @@ namespace Oomph\detection\combat;
 
 use Oomph\detection\Detection;
 use Oomph\player\OomphPlayer;
-use pocketmine\entity\Entity;
+use Oomph\entity\TrackedEntity;
+use Oomph\utils\AABBUtils;
 use pocketmine\math\Vector3;
 use pocketmine\math\AxisAlignedBB;
 
 /**
  * HitboxA Detection
  *
- * Client hitbox validation using Interact packet. Compares the client-reported
- * interaction position against the expected entity hitbox position. Detects
- * clients with expanded hitboxes.
+ * Checks if the player is using a hitbox modification greater than the one sent by the server.
+ * Based on anticheat-reference/player/detection/hitbox_a.go
  *
- * Requires: EnableClientEntityTracking=true
+ * Uses the Interact packet's click position to validate hitbox against entity bbox.
+ * Requires client entity tracking to be enabled.
  */
 class HitboxA extends Detection {
 
-    // Distance threshold - flag if reported position is this far from expected hitbox
+    // Distance threshold from Go implementation
     private const DISTANCE_THRESHOLD = 0.004;
 
+    // Minimum ticks since entity teleport to check
+    private const MIN_TICKS_SINCE_TELEPORT = 10;
+
     public function __construct() {
-        // MaxViolations: 10
-        // FailBuffer: 6, MaxBuffer: 6
+        // From Go: FailBuffer: 6, MaxBuffer: 6, MaxViolations: 10, no TrustDuration
         parent::__construct(
             maxBuffer: 6.0,
             failBuffer: 6.0,
@@ -47,40 +50,65 @@ class HitboxA extends Detection {
     }
 
     /**
+     * This detection can cancel attacks
+     */
+    public function isCancellable(): bool {
+        return false; // Go implementation doesn't explicitly cancel, just flags
+    }
+
+    /**
      * Check if client-reported interaction position matches expected entity hitbox
+     * This matches the Go implementation from lines 48-74
      *
      * @param OomphPlayer $player The player who sent the Interact packet
-     * @param Entity $target The target entity
-     * @param Vector3 $clientReportedPosition Position reported by client in Interact packet
+     * @param TrackedEntity $entity The target entity from client tracker
+     * @param Vector3 $clickPosition Position reported by client in Interact packet
      */
-    public function check(OomphPlayer $player, Entity $target, Vector3 $clientReportedPosition): void {
-        // Get expected entity bounding box from server-side tracking
-        $expectedBB = $target->getBoundingBox();
+    public function check(OomphPlayer $player, TrackedEntity $entity, Vector3 $clickPosition): void {
+        // Skip if entity is not a player (line 59 in Go)
+        if (!$entity->isPlayer) {
+            return;
+        }
 
-        // Calculate closest point on expected AABB to client-reported position
-        $closestPoint = $this->getClosestPointOnAABB($clientReportedPosition, $expectedBB);
+        // Skip if entity recently teleported (line 59 in Go)
+        if ($entity->getTicksSinceTeleport() <= self::MIN_TICKS_SINCE_TELEPORT) {
+            return;
+        }
 
-        // Calculate distance from reported position to expected hitbox
-        $distance = $clientReportedPosition->distance($closestPoint);
+        // Check click position against both current and previous entity position (lines 62-63 in Go)
+        // Entity bbox grown by 0.1 for tolerance
+        $bbox1 = $entity->getBoundingBoxAt($entity->prevPosition);
+        $expandedBbox1 = AABBUtils::expand($bbox1, 0.1);
 
-        // Check if distance exceeds threshold
-        if ($distance > self::DISTANCE_THRESHOLD) {
-            // Client reporting hits outside actual hitbox
-            $this->fail($player);
+        $bbox2 = $entity->getBoundingBoxAt($entity->position);
+        $expandedBbox2 = AABBUtils::expand($bbox2, 0.1);
+
+        // Calculate distance to closest point on both bboxes (lines 64-67 in Go)
+        $closestPoint1 = AABBUtils::closestPointOnAABB($expandedBbox1, $clickPosition);
+        $dist1 = $clickPosition->distance($closestPoint1);
+
+        $closestPoint2 = AABBUtils::closestPointOnAABB($expandedBbox2, $clickPosition);
+        $dist2 = $clickPosition->distance($closestPoint2);
+
+        // Use minimum distance (line 64 in Go: math32.Min)
+        $dist = min($dist1, $dist2);
+
+        // Flag if distance exceeds threshold (line 68 in Go)
+        if ($dist > self::DISTANCE_THRESHOLD) {
+            // Calculate dynamic fail amount based on distance (line 69 in Go)
+            // amt = 0.6 + (dist * 2), rounded to 3 decimals
+            $amount = round(0.6 + ($dist * 2.0), 3);
+            $this->fail($player, $amount);
         } else {
-            // Valid hitbox interaction
-            $this->pass();
+            // Pass and decay entire buffer (line 71 in Go)
+            $this->pass($this->buffer);
         }
     }
 
     /**
-     * Get closest point on AABB to a given point
+     * Get the distance threshold for debugging
      */
-    private function getClosestPointOnAABB(Vector3 $point, AxisAlignedBB $aabb): Vector3 {
-        return new Vector3(
-            max($aabb->minX, min($point->x, $aabb->maxX)),
-            max($aabb->minY, min($point->y, $aabb->maxY)),
-            max($aabb->minZ, min($point->z, $aabb->maxZ))
-        );
+    public function getDistanceThreshold(): float {
+        return self::DISTANCE_THRESHOLD;
     }
 }

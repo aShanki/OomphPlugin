@@ -6,25 +6,21 @@ namespace Oomph\detection\combat;
 
 use Oomph\detection\Detection;
 use Oomph\player\OomphPlayer;
-use pocketmine\entity\Entity;
-use pocketmine\math\Vector3;
-use pocketmine\math\AxisAlignedBB;
 
 /**
  * ReachA Detection
  *
- * Raycast-based reach validation. Performs raycasting from player's eye position
- * toward their look direction, testing against entity's historical positions
- * (lag compensation). Flags if attack distance exceeds legitimate reach.
+ * Uses the CombatComponent's 10-step lerp raycast results to detect reach hacks.
+ * Based on anticheat-reference/player/detection/reach_a.go
+ *
+ * Checks if player's combat reach exceeds the vanilla value.
+ * Only applicable for non-touch clients.
  */
 class ReachA extends Detection {
 
-    // Reach thresholds
+    // Reach thresholds from Go implementation
     private const MIN_REACH_THRESHOLD = 2.9;
     private const MAX_REACH_THRESHOLD = 3.0;
-
-    // Interpolation steps for lag compensation
-    private const LERP_STEPS = 20;
 
     // Skip checks for this many ticks after teleport
     private const TICKS_AFTER_TELEPORT = 20;
@@ -33,13 +29,10 @@ class ReachA extends Detection {
     private const INPUT_MODE_TOUCH = 0;
 
     private int $ticksSinceTeleport = 999;
-    private float $minReach = 999.0;
-    private float $maxReach = 0.0;
+    private int $correctionCooldown = 0;
 
     public function __construct() {
-        // MaxViolations: 7
-        // FailBuffer: 1.01, MaxBuffer: 1.5
-        // TrustDuration: 60 ticks
+        // From Go: FailBuffer: 1.01, MaxBuffer: 1.5, MaxViolations: 7, TrustDuration: 60 ticks
         parent::__construct(
             maxBuffer: 1.5,
             failBuffer: 1.01,
@@ -60,6 +53,13 @@ class ReachA extends Detection {
     }
 
     /**
+     * This detection can cancel attacks
+     */
+    public function isCancellable(): bool {
+        return true;
+    }
+
+    /**
      * Reset teleport counter
      */
     public function onTeleport(): void {
@@ -67,172 +67,90 @@ class ReachA extends Detection {
     }
 
     /**
-     * Increment ticks since teleport
+     * Notify of a correction being sent (movement correction)
+     */
+    public function onCorrection(): void {
+        $this->correctionCooldown = 20; // Match Go: InCorrectionCooldown checks <= 20
+    }
+
+    /**
+     * Increment ticks since teleport and decrement correction cooldown
      */
     public function tick(): void {
         if ($this->ticksSinceTeleport < self::TICKS_AFTER_TELEPORT) {
             $this->ticksSinceTeleport++;
         }
+        if ($this->correctionCooldown > 0) {
+            $this->correctionCooldown--;
+        }
     }
 
     /**
-     * Check if attack reach is legitimate using raycast method
+     * Check combat reach using CombatComponent's raycast results
+     * This matches the Go implementation's hook function exactly
      *
      * @param OomphPlayer $player The attacking player
-     * @param Entity $target The target entity
-     * @param int $inputMode Player's input mode
      */
-    public function check(OomphPlayer $player, Entity $target, int $inputMode): void {
-        // Skip touch clients (too many false positives due to mobile quirks)
-        if ($inputMode === self::INPUT_MODE_TOUCH) {
+    public function check(OomphPlayer $player): void {
+        // Skip touch clients (line 52 in Go)
+        if ($player->getInputMode() === self::INPUT_MODE_TOUCH) {
             return;
         }
 
-        // Skip first 20 ticks after teleport
-        if ($this->ticksSinceTeleport < self::TICKS_AFTER_TELEPORT) {
+        // Skip first 20 ticks after teleport (line 52 in Go)
+        if ($this->ticksSinceTeleport <= self::TICKS_AFTER_TELEPORT) {
             return;
         }
 
-        // Get attacker's eye position
-        $attackerPos = $player->getPlayer()->getPosition();
-        $eyeHeight = $player->getPlayer()->getEyeHeight();
-        $eyePos = $attackerPos->add(0, $eyeHeight, 0);
+        // Skip during correction cooldown (line 52 in Go)
+        if ($this->correctionCooldown > 0) {
+            return;
+        }
 
-        // Get attacker's look direction
-        $yaw = $player->getMovementComponent()->getYaw();
-        $pitch = $player->getMovementComponent()->getPitch();
-        $direction = $this->getDirectionVector($yaw, $pitch);
+        // Get raycast results from combat component
+        $combatComponent = $player->getCombatComponent();
+        $raycasts = $combatComponent->getRaycasts();
 
-        // Get target's current position
-        $currentPos = $target->getPosition();
+        // No raycasts means no validation needed (line 56-58 in Go)
+        if ($raycasts === []) {
+            return;
+        }
 
-        // Try to get previous position from entity tracker for lag compensation
-        $prevPos = $currentPos;
-        $entityTracker = $player->getCombatComponent()->getEntityTracker();
-        $trackedEntity = $entityTracker->getEntity($target->getId());
-        if ($trackedEntity !== null) {
-            $history = $trackedEntity->getPositionHistory();
-            if (count($history) >= 2) {
-                // Get second-to-last position for interpolation
-                $prevPos = $history[count($history) - 2]->position;
+        // Calculate min and max reach from raycasts (lines 60-69 in Go)
+        $minReach = PHP_FLOAT_MAX;
+        $maxReach = 0.0;
+
+        foreach ($raycasts as $dist) {
+            if ($dist > $maxReach) {
+                $maxReach = $dist;
+            }
+            if ($dist < $minReach) {
+                $minReach = $dist;
             }
         }
 
-        // Get target's bounding box dimensions
-        $targetBB = $target->getBoundingBox();
-
-        // Perform raycast at multiple interpolation steps (lag compensation)
-        $this->minReach = 999.0;
-        $this->maxReach = 0.0;
-
-        for ($i = 0; $i <= self::LERP_STEPS; $i++) {
-            $t = $i / self::LERP_STEPS;
-
-            // Interpolate position
-            $lerpedPos = $this->lerp($prevPos, $currentPos, $t);
-
-            // Create bounding box at interpolated position
-            $width = $targetBB->maxX - $targetBB->minX;
-            $height = $targetBB->maxY - $targetBB->minY;
-            $depth = $targetBB->maxZ - $targetBB->minZ;
-
-            $halfWidth = $width / 2;
-            $halfDepth = $depth / 2;
-
-            $interpolatedBB = new AxisAlignedBB(
-                $lerpedPos->x - $halfWidth,
-                $lerpedPos->y,
-                $lerpedPos->z - $halfDepth,
-                $lerpedPos->x + $halfWidth,
-                $lerpedPos->y + $height,
-                $lerpedPos->z + $halfDepth
-            );
-
-            // Perform raycast
-            $distance = $this->raycastToAABB($eyePos, $direction, $interpolatedBB);
-
-            if ($distance !== null) {
-                $this->minReach = min($this->minReach, $distance);
-                $this->maxReach = max($this->maxReach, $distance);
-            }
-        }
-
-        // Check if reach exceeds thresholds
-        if ($this->minReach > self::MIN_REACH_THRESHOLD && $this->maxReach > self::MAX_REACH_THRESHOLD) {
-            // Attack exceeds legitimate reach
+        // Flag if both thresholds exceeded (line 70 in Go)
+        if ($minReach > self::MIN_REACH_THRESHOLD && $maxReach > self::MAX_REACH_THRESHOLD) {
             $this->fail($player);
+            // Debug log (line 72 in Go)
+            // Log: reach(A) min=$minReach max=$maxReach vl=$violations
         } else {
-            // Legitimate reach
-            $this->pass();
+            // Pass with small decay (line 74 in Go)
+            $this->pass(0.0015);
         }
     }
 
     /**
-     * Calculate direction vector from yaw and pitch
+     * Get ticks since last teleport for debugging
      */
-    private function getDirectionVector(float $yaw, float $pitch): Vector3 {
-        $yawRad = deg2rad($yaw);
-        $pitchRad = deg2rad($pitch);
-
-        return new Vector3(
-            -sin($yawRad) * cos($pitchRad),
-            -sin($pitchRad),
-            cos($yawRad) * cos($pitchRad)
-        );
+    public function getTicksSinceTeleport(): int {
+        return $this->ticksSinceTeleport;
     }
 
     /**
-     * Linear interpolation between two positions
+     * Get correction cooldown for debugging
      */
-    private function lerp(Vector3 $from, Vector3 $to, float $t): Vector3 {
-        return new Vector3(
-            $from->x + ($to->x - $from->x) * $t,
-            $from->y + ($to->y - $from->y) * $t,
-            $from->z + ($to->z - $from->z) * $t
-        );
-    }
-
-    /**
-     * Raycast from origin in direction to check intersection with AABB
-     * Returns distance to intersection or null if no intersection
-     */
-    private function raycastToAABB(Vector3 $origin, Vector3 $direction, AxisAlignedBB $aabb): ?float {
-        // Ray-AABB intersection algorithm
-        $invDirX = $direction->x !== 0.0 ? 1.0 / $direction->x : PHP_FLOAT_MAX;
-        $invDirY = $direction->y !== 0.0 ? 1.0 / $direction->y : PHP_FLOAT_MAX;
-        $invDirZ = $direction->z !== 0.0 ? 1.0 / $direction->z : PHP_FLOAT_MAX;
-
-        $tx1 = ($aabb->minX - $origin->x) * $invDirX;
-        $tx2 = ($aabb->maxX - $origin->x) * $invDirX;
-        $ty1 = ($aabb->minY - $origin->y) * $invDirY;
-        $ty2 = ($aabb->maxY - $origin->y) * $invDirY;
-        $tz1 = ($aabb->minZ - $origin->z) * $invDirZ;
-        $tz2 = ($aabb->maxZ - $origin->z) * $invDirZ;
-
-        $tmin = max(max(min($tx1, $tx2), min($ty1, $ty2)), min($tz1, $tz2));
-        $tmax = min(min(max($tx1, $tx2), max($ty1, $ty2)), max($tz1, $tz2));
-
-        // No intersection if tmax < 0 or tmin > tmax
-        if ($tmax < 0 || $tmin > $tmax) {
-            return null;
-        }
-
-        // Calculate distance
-        $t = $tmin >= 0 ? $tmin : $tmax;
-        return $t * $direction->length();
-    }
-
-    /**
-     * Get last calculated min reach for debugging
-     */
-    public function getLastMinReach(): float {
-        return $this->minReach;
-    }
-
-    /**
-     * Get last calculated max reach for debugging
-     */
-    public function getLastMaxReach(): float {
-        return $this->maxReach;
+    public function getCorrectionCooldown(): int {
+        return $this->correctionCooldown;
     }
 }

@@ -119,12 +119,8 @@ class PlayerListener implements Listener {
             return;
         }
 
-        // Combat logging - track attacked entity
-        $combat = $oomphPlayer->getCombatComponent();
-        $combat->addAttackedEntity($entity->getId());
-
         // Combat validation is primarily handled via InventoryTransaction packets
-        // This event can be used for additional server-side combat validation
+        // Entity tracking for lag compensation is done via the EntityTracker in CombatComponent
     }
 
     /**

@@ -171,4 +171,20 @@ abstract class Detection {
     public function getLastFlagged(): int {
         return $this->lastFlagged;
     }
+
+    /**
+     * Whether this detection can cancel events (e.g., cancel attacks)
+     * Override this in subclasses that should cancel events
+     */
+    public function isCancellable(): bool {
+        return false;
+    }
+
+    /**
+     * Whether an event should be cancelled based on current buffer
+     * This checks if the buffer has reached the fail threshold
+     */
+    public function shouldCancel(): bool {
+        return $this->buffer >= $this->failBuffer;
+    }
 }

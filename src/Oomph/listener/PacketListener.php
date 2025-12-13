@@ -7,6 +7,7 @@ namespace Oomph\listener;
 use Oomph\Main;
 use Oomph\player\PlayerManager;
 use Oomph\player\OomphPlayer;
+use Oomph\entity\TrackedEntity;
 use Oomph\detection\combat\AutoclickerA;
 use Oomph\detection\combat\AimA;
 use Oomph\detection\combat\KillauraA;
@@ -35,6 +36,7 @@ use pocketmine\network\mcpe\protocol\types\PlayerAction;
 use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
 use pocketmine\network\mcpe\protocol\types\inventory\stackrequest\CreativeCreateStackRequestAction;
 use pocketmine\Server;
+use pocketmine\entity\Living;
 
 class PacketListener implements Listener {
 
@@ -167,6 +169,9 @@ class PacketListener implements Listener {
     private function handleInventoryTransaction(InventoryTransactionPacket $packet, OomphPlayer $oomphPlayer): void {
         $transactionData = $packet->trData;
         $dm = $oomphPlayer->getDetectionManager();
+        $combatComponent = $oomphPlayer->getCombatComponent();
+        $movementComponent = $oomphPlayer->getMovementComponent();
+        $entityTracker = $combatComponent->getEntityTracker();
 
         // Check for UseItemOnEntityTransactionData (combat)
         if ($transactionData instanceof UseItemOnEntityTransactionData) {
@@ -176,6 +181,7 @@ class PacketListener implements Listener {
             // Check if player is attacking
             if ($actionType === UseItemOnEntityTransactionData::ACTION_ATTACK) {
                 $player = $oomphPlayer->getPlayer();
+                $shouldCancelAttack = false;
 
                 // BadPacketB: Check for self-hitting
                 $badPacketB = $dm->get("BadPacketB");
@@ -191,31 +197,102 @@ class PacketListener implements Listener {
                 // KillauraA: Check if attack occurred without swing animation
                 $killauraA = $dm->get("KillauraA");
                 if ($killauraA instanceof KillauraA) {
-                    $killauraA->check($oomphPlayer);
+                    $killauraA->check($oomphPlayer, $oomphPlayer->getServerTick());
+
+                    // Check if killaura detection wants to cancel
+                    if ($killauraA->isCancellable() && $killauraA->shouldCancel()) {
+                        $shouldCancelAttack = true;
+                        $oomphPlayer->getCancellationManager()->setCancelAttack(true, "KillauraA");
+                    }
                 }
 
-                // Get target entity for reach checks
+                // Get target entity for reach/hitbox checks
                 $world = $player->getWorld();
                 $target = $world->getEntity($entityRuntimeId);
 
-                if ($target !== null) {
-                    // ReachA: Raycast-based reach check
+                // Get or create TrackedEntity for combat validation
+                $trackedEntity = $entityTracker->getEntity($entityRuntimeId);
+                if ($trackedEntity === null && $target instanceof Living) {
+                    // Add entity to tracker if not present
+                    $entityTracker->addEntity(
+                        runtimeId: $entityRuntimeId,
+                        position: $target->getPosition()->asVector3(),
+                        width: $target->getSize()->getWidth(),
+                        height: $target->getSize()->getHeight(),
+                        scale: $target->getScale(),
+                        isPlayer: $target instanceof \pocketmine\player\Player
+                    );
+                    $trackedEntity = $entityTracker->getEntity($entityRuntimeId);
+                }
+
+                if ($target !== null && $trackedEntity !== null) {
+                    // Set up combat validation using 10-step lerp
+                    $attackerPos = $movementComponent->getPosition();
+                    $lastAttackerPos = $movementComponent->getPrevPosition();
+                    $isSneaking = $movementComponent->isSneaking();
+
+                    // Record attack and set up validation state
+                    $combatComponent->attack(
+                        input: $packet,
+                        attackerPos: $attackerPos,
+                        lastAttackerPos: $lastAttackerPos,
+                        isSneaking: $isSneaking,
+                        target: $trackedEntity,
+                        clientTick: $oomphPlayer->getClientTick()
+                    );
+
+                    // Calculate hit validity using 10-step lerp validation
+                    $rotation = new Vector3(
+                        $movementComponent->getYaw(),
+                        $movementComponent->getPitch(),
+                        $movementComponent->getYaw() // headYaw
+                    );
+                    $lastRotation = new Vector3(
+                        $movementComponent->getLastYaw(),
+                        $movementComponent->getLastPitch(),
+                        $movementComponent->getLastYaw() // last headYaw
+                    );
+
+                    $isValidHit = $combatComponent->calculate($rotation, $lastRotation, $oomphPlayer->getInputMode());
+
+                    // ReachA: Raycast-based reach check using combat component results
                     $reachA = $dm->get("ReachA");
                     if ($reachA instanceof ReachA) {
-                        $reachA->check($oomphPlayer, $target, $oomphPlayer->getInputMode());
+                        $reachA->check($oomphPlayer);
+
+                        // Check if reach detection wants to cancel
+                        if ($reachA->isCancellable() && $reachA->shouldCancel()) {
+                            $shouldCancelAttack = true;
+                            $oomphPlayer->getCancellationManager()->setCancelAttack(true, "ReachA");
+                        }
                     }
 
-                    // ReachB: Closest point distance check
+                    // ReachB: Closest point distance check (uses raw results)
                     $reachB = $dm->get("ReachB");
                     if ($reachB instanceof ReachB) {
                         $reachB->check($oomphPlayer, $target);
                     }
 
-                    // HitboxA: Validate client-reported click position against entity hitbox
+                    // HitboxA: Validate client-reported click position
                     $hitboxA = $dm->get("HitboxA");
                     if ($hitboxA instanceof HitboxA) {
                         $clickPos = $transactionData->getClickPosition();
-                        $hitboxA->check($oomphPlayer, $target, $clickPos);
+                        $hitboxA->check($oomphPlayer, $trackedEntity, $clickPos);
+
+                        // Check if hitbox detection wants to cancel
+                        if ($hitboxA->isCancellable() && $hitboxA->shouldCancel()) {
+                            $shouldCancelAttack = true;
+                            $oomphPlayer->getCancellationManager()->setCancelAttack(true, "HitboxA");
+                        }
+                    }
+
+                    // Cancel attack if any detection flagged OR hit validation failed
+                    if ($shouldCancelAttack || !$isValidHit) {
+                        // Use cancellation manager to mark the attack as cancelled
+                        $cancellation = $oomphPlayer->getCancellationManager();
+                        if (!$cancellation->shouldCancelAttack()) {
+                            $cancellation->setCancelAttack(true, $isValidHit ? "Detection" : "InvalidHit");
+                        }
                     }
                 }
             }

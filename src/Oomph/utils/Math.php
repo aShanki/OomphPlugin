@@ -123,4 +123,60 @@ class Math {
         $dz = $a->z - $b->z;
         return $dx * $dx + $dz * $dz;
     }
+
+    // ========== MINECRAFT-SPECIFIC MATH ==========
+
+    /** @var float[] Sin lookup table for Minecraft physics */
+    private static array $sinTable = [];
+
+    /**
+     * Initialize sin table for Minecraft physics calculations
+     */
+    private static function initSinTable(): void {
+        if (self::$sinTable === []) {
+            for ($i = 0; $i < 65536; $i++) {
+                self::$sinTable[$i] = sin($i * M_PI * 2.0 / 65536.0);
+            }
+        }
+    }
+
+    /**
+     * Minecraft's sine function using lookup table
+     * @param float $val Angle value
+     * @return float Sine value
+     */
+    public static function mcSin(float $val): float {
+        self::initSinTable();
+        $index = ((int)($val * 10430.378)) & 65535;
+        return self::$sinTable[$index];
+    }
+
+    /**
+     * Minecraft's cosine function using lookup table
+     * @param float $val Angle value
+     * @return float Cosine value
+     */
+    public static function mcCos(float $val): float {
+        self::initSinTable();
+        $index = ((int)($val * 10430.378 + 16384.0)) & 65535;
+        return self::$sinTable[$index];
+    }
+
+    /**
+     * Get horizontal distance squared from a vector (X and Z components)
+     * @param Vector3 $vec Vector
+     * @return float Horizontal distance squared
+     */
+    public static function horizontalDistanceSquaredVec(Vector3 $vec): float {
+        return $vec->x * $vec->x + $vec->z * $vec->z;
+    }
+
+    /**
+     * Absolute value of a vector (all components positive)
+     * @param Vector3 $vec Vector
+     * @return Vector3 Vector with absolute values
+     */
+    public static function absVector(Vector3 $vec): Vector3 {
+        return new Vector3(abs($vec->x), abs($vec->y), abs($vec->z));
+    }
 }

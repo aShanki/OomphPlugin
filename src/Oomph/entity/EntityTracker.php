@@ -116,6 +116,33 @@ class EntityTracker {
     }
 
     /**
+     * Rewind an entity and return both position and prevPosition for interpolation.
+     * This is used for combat validation to get smooth position transitions.
+     *
+     * @param int $runtimeId Entity runtime ID
+     * @param int $targetTick Target tick to rewind to
+     * @return array{position: Vector3, prevPosition: Vector3, tick: int, wasTeleport: bool}|null
+     */
+    public function rewindWithPrev(int $runtimeId, int $targetTick): ?array {
+        $entity = $this->getEntity($runtimeId);
+        if ($entity === null) {
+            return null;
+        }
+
+        $historical = $entity->getHistoricalPosition($targetTick);
+        if ($historical === null) {
+            return null;
+        }
+
+        return [
+            'position' => $historical->position,
+            'prevPosition' => $historical->prevPosition,
+            'tick' => $historical->tick,
+            'wasTeleport' => $historical->wasTeleport
+        ];
+    }
+
+    /**
      * Clear all tracked entities.
      */
     public function clear(): void {

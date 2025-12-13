@@ -11,17 +11,19 @@ use pocketmine\entity\effect\VanillaEffects;
 /**
  * KillauraA Detection
  *
- * Detects attacks without arm swing animation. Legitimate players must swing
- * their arm before attacking. Killaura cheats often skip this animation.
+ * Detects if a player is attacking without swinging their arm.
+ * Based on anticheat-reference/player/detection/killaura_a.go
+ *
+ * Legitimate players must swing their arm before attacking.
+ * Killaura cheats often skip this animation to attack faster.
  */
 class KillauraA extends Detection {
 
-    // Base tick threshold before considering attack without swing
+    // Base tick threshold from Go implementation
     private const BASE_MAX_TICK_DIFF = 10;
 
     public function __construct() {
-        // MaxViolations: 1
-        // FailBuffer: 1, MaxBuffer: 1
+        // From Go: FailBuffer: 1, MaxBuffer: 1, MaxViolations: 1, no TrustDuration
         parent::__construct(
             maxBuffer: 1.0,
             failBuffer: 1.0,
@@ -42,36 +44,49 @@ class KillauraA extends Detection {
     }
 
     /**
+     * This detection can cancel attacks
+     */
+    public function isCancellable(): bool {
+        return true;
+    }
+
+    /**
      * Check if player attacked without recent arm swing
+     * This matches the Go implementation's Detect function (lines 46-69)
      *
      * @param OomphPlayer $player The player being checked
+     * @param int $currentTick Current simulation frame/tick
      */
-    public function check(OomphPlayer $player): void {
+    public function check(OomphPlayer $player, int $currentTick): void {
         $combatComponent = $player->getCombatComponent();
-        $serverTick = $player->getServerTick();
         $lastSwingTick = $combatComponent->getLastSwingTick();
 
-        // Calculate ticks since last swing
-        $tickDiff = $serverTick - $lastSwingTick;
+        // Calculate ticks since last swing (line 55 in Go)
+        $tickDiff = $currentTick - $lastSwingTick;
 
-        // Calculate max allowed tick difference
-        // Mining Fatigue increases the threshold
+        // Calculate max allowed tick difference (lines 56-59 in Go)
         $maxTickDiff = self::BASE_MAX_TICK_DIFF;
 
+        // Mining Fatigue increases the threshold (lines 57-59 in Go)
         $effectManager = $player->getPlayer()->getEffects();
-        $effect = $effectManager->get(VanillaEffects::MINING_FATIGUE());
-        if ($effect !== null) {
-            $amplifier = $effect->getAmplifier();
+        $miningFatigue = $effectManager->get(VanillaEffects::MINING_FATIGUE());
+        if ($miningFatigue !== null) {
+            $amplifier = $miningFatigue->getAmplifier();
             $maxTickDiff += $amplifier;
         }
 
-        // Check if attack occurred too long after last swing
+        // Flag if attack occurred too long after last swing (lines 61-68 in Go)
         if ($tickDiff > $maxTickDiff) {
-            // Attack without recent arm swing animation
             $this->fail($player);
-        } else {
-            // Valid swing timing
-            $this->pass();
+            // Debug log (lines 62-67 in Go)
+            // Log: tick_diff=$tickDiff current_tick=$currentTick last_tick=$lastSwingTick
         }
+    }
+
+    /**
+     * Get base max tick diff for debugging
+     */
+    public function getBaseMaxTickDiff(): int {
+        return self::BASE_MAX_TICK_DIFF;
     }
 }
