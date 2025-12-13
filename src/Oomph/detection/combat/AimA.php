@@ -81,7 +81,11 @@ class AimA extends Detection {
 
         // Flag if difference is suspiciously small
         if ($diff <= self::ROUNDED_THRESHOLD) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'yaw_delta' => $yawDelta,
+                'rounded' => $rounded,
+                'diff' => $diff
+            ]);
             return;
         }
 

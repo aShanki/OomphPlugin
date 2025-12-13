@@ -77,7 +77,11 @@ class EditionFakerB extends Detection {
         // Check if input mode matches expected for this DeviceOS
         if ($defaultInputMode !== $expectedInputMode) {
             // Input mode doesn't match expected for this DeviceOS
-            $this->fail($player);
+            $this->fail($player, 1.0, [
+                'device_os' => $deviceOS,
+                'input_mode' => $defaultInputMode,
+                'expected' => $expectedInputMode
+            ]);
         }
     }
 }

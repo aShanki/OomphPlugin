@@ -77,9 +77,12 @@ class KillauraA extends Detection {
 
         // Flag if attack occurred too long after last swing (lines 61-68 in Go)
         if ($tickDiff > $maxTickDiff) {
-            $this->fail($player);
-            // Debug log (lines 62-67 in Go)
-            // Log: tick_diff=$tickDiff current_tick=$currentTick last_tick=$lastSwingTick
+            $this->fail($player, 1.0, [
+                'tick_diff' => $tickDiff,
+                'current_tick' => $currentTick,
+                'last_swing' => $lastSwingTick,
+                'max_diff' => $maxTickDiff
+            ]);
         }
     }
 

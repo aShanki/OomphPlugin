@@ -131,9 +131,10 @@ class ReachA extends Detection {
 
         // Flag if both thresholds exceeded (line 70 in Go)
         if ($minReach > self::MIN_REACH_THRESHOLD && $maxReach > self::MAX_REACH_THRESHOLD) {
-            $this->fail($player);
-            // Debug log (line 72 in Go)
-            // Log: reach(A) min=$minReach max=$maxReach vl=$violations
+            $this->fail($player, 1.0, [
+                'min_reach' => $minReach,
+                'max_reach' => $maxReach
+            ]);
         } else {
             // Pass with small decay (line 74 in Go)
             $this->pass(0.0015);

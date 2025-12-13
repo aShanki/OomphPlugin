@@ -53,7 +53,10 @@ class BadPacketB extends Detection {
 
         // Flag if attacking self
         if ($targetEntityId === $playerEntityId) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'target_id' => $targetEntityId,
+                'self_id' => $playerEntityId
+            ]);
         }
     }
 }

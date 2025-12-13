@@ -58,7 +58,9 @@ class BadPacketG extends Detection {
     public function process(OomphPlayer $player, int $blockFace): void {
         // Check if block face is out of range [0, 5]
         if ($blockFace < self::MIN_BLOCK_FACE || $blockFace > self::MAX_BLOCK_FACE) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'block_face' => $blockFace
+            ]);
         }
     }
 }

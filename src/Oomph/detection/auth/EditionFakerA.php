@@ -75,7 +75,10 @@ class EditionFakerA extends Detection {
         // Check if TitleID is valid for this DeviceOS
         if (!in_array($titleIdInt, $validTitleIds, true)) {
             // TitleID doesn't match expected values for this DeviceOS
-            $this->fail($player);
+            $this->fail($player, 1.0, [
+                'device_os' => $deviceOS,
+                'title_id' => $titleID
+            ]);
         }
     }
 }

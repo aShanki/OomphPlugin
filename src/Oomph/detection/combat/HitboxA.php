@@ -98,7 +98,10 @@ class HitboxA extends Detection {
             // Calculate dynamic fail amount based on distance (line 69 in Go)
             // amt = 0.6 + (dist * 2), rounded to 3 decimals
             $amount = round(0.6 + ($dist * 2.0), 3);
-            $this->fail($player, $amount);
+            $this->fail($player, $amount, [
+                'dist' => $dist,
+                'expansion' => $amount
+            ]);
         } else {
             // Pass and decay entire buffer (line 71 in Go)
             $this->pass($this->buffer);

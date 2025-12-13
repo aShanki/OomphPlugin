@@ -96,13 +96,19 @@ class AutoclickerA extends Detection {
 
         // Check left click CPS
         if ($leftCPS > $leftLimit) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'left_cps' => $leftCPS,
+                'limit' => $leftLimit
+            ]);
             return;
         }
 
         // Check right click CPS
         if ($rightCPS > $rightLimit) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'right_cps' => $rightCPS,
+                'limit' => $rightLimit
+            ]);
             return;
         }
 

@@ -14,11 +14,13 @@ use Oomph\detection\combat\KillauraA;
 use Oomph\detection\combat\ReachA;
 use Oomph\detection\combat\ReachB;
 use Oomph\detection\combat\HitboxA;
+use Oomph\detection\packet\BadPacketA;
 use Oomph\detection\packet\BadPacketB;
 use Oomph\detection\packet\BadPacketC;
 use Oomph\detection\packet\BadPacketD;
 use Oomph\detection\packet\BadPacketE;
 use Oomph\detection\packet\BadPacketF;
+use Oomph\detection\packet\BadPacketG;
 use Oomph\detection\movement\InvMoveA;
 use Oomph\detection\world\ScaffoldA;
 use pocketmine\event\Listener;
@@ -32,6 +34,7 @@ use pocketmine\network\mcpe\protocol\ItemStackRequestPacket;
 use pocketmine\network\mcpe\protocol\PlayerActionPacket;
 use pocketmine\network\mcpe\protocol\PlayerAuthInputPacket;
 use pocketmine\network\mcpe\protocol\types\inventory\UseItemOnEntityTransactionData;
+use pocketmine\network\mcpe\protocol\types\inventory\UseItemTransactionData;
 use pocketmine\network\mcpe\protocol\types\PlayerAction;
 use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
 use pocketmine\network\mcpe\protocol\types\inventory\stackrequest\CreativeCreateStackRequestAction;
@@ -134,6 +137,15 @@ class PacketListener implements Listener {
 
         // === Run detection checks ===
 
+        // BadPacketA: Validate simulation frame
+        $badPacketA = $dm->get("BadPacketA");
+        if ($badPacketA instanceof BadPacketA) {
+            $currentFrame = $packet->getTick();
+            $lastFrame = $oomphPlayer->getSimulationFrame();
+            $badPacketA->process($oomphPlayer, $currentFrame, $lastFrame);
+            $oomphPlayer->setSimulationFrame($currentFrame);
+        }
+
         // AimA: Check rotation deltas for aimbot (mouse input only)
         $aimA = $dm->get("AimA");
         if ($aimA instanceof AimA) {
@@ -164,6 +176,16 @@ class PacketListener implements Listener {
         if ($reachA instanceof ReachA) {
             $reachA->tick();
         }
+
+        // InvMoveA: Check preFlag on PlayerAuthInput (second phase)
+        $invMoveA = $dm->get("InvMoveA");
+        if ($invMoveA instanceof InvMoveA) {
+            $impulse = new Vector2(
+                $movement->getImpulseForward(),
+                $movement->getImpulseStrafe()
+            );
+            $invMoveA->onPlayerAuthInput($oomphPlayer, $impulse);
+        }
     }
 
     private function handleInventoryTransaction(InventoryTransactionPacket $packet, OomphPlayer $oomphPlayer): void {
@@ -172,6 +194,29 @@ class PacketListener implements Listener {
         $combatComponent = $oomphPlayer->getCombatComponent();
         $movementComponent = $oomphPlayer->getMovementComponent();
         $entityTracker = $combatComponent->getEntityTracker();
+
+        // Check for UseItemTransactionData (block placement/interaction)
+        if ($transactionData instanceof UseItemTransactionData) {
+            $actionType = $transactionData->getActionType();
+
+            // BadPacketG: Validate block face (skip for click air)
+            if ($actionType !== UseItemTransactionData::ACTION_CLICK_AIR) {
+                $badPacketG = $dm->get("BadPacketG");
+                if ($badPacketG instanceof BadPacketG) {
+                    $blockFace = $transactionData->getFace();
+                    $badPacketG->process($oomphPlayer, $blockFace);
+                }
+            }
+
+            // ScaffoldA: Check for zero click position on block clicks
+            if ($actionType === UseItemTransactionData::ACTION_CLICK_BLOCK) {
+                $scaffoldA = $dm->get("ScaffoldA");
+                if ($scaffoldA instanceof ScaffoldA) {
+                    $clickPos = $transactionData->getClickPosition();
+                    $scaffoldA->check($oomphPlayer, $clickPos);
+                }
+            }
+        }
 
         // Check for UseItemOnEntityTransactionData (combat)
         if ($transactionData instanceof UseItemOnEntityTransactionData) {
@@ -303,14 +348,14 @@ class PacketListener implements Listener {
         $dm = $oomphPlayer->getDetectionManager();
         $movement = $oomphPlayer->getMovementComponent();
 
-        // InvMoveA: Check if player is moving while in inventory
+        // InvMoveA: Record movement state during inventory action (first phase)
         $invMoveA = $dm->get("InvMoveA");
         if ($invMoveA instanceof InvMoveA) {
             $impulse = new Vector2(
                 $movement->getImpulseForward(),
                 $movement->getImpulseStrafe()
             );
-            $invMoveA->check($oomphPlayer, $impulse);
+            $invMoveA->onItemStackRequest($oomphPlayer, $impulse);
         }
 
         // BadPacketD: Check for creative transactions in survival

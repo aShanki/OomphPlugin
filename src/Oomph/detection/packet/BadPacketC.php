@@ -58,7 +58,9 @@ class BadPacketC extends Detection {
 
         // Flag if break action detected in non-creative mode
         if ($isBreakAction) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'gamemode' => $player->getPlayer()->getGamemode()->name()
+            ]);
         }
     }
 }

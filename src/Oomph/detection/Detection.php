@@ -73,8 +73,9 @@ abstract class Detection {
      *
      * @param OomphPlayer $player The player being checked
      * @param float $extra Additional buffer to add (default: 1.0)
+     * @param array<string, mixed> $debugData Optional debug data for logging
      */
-    public function fail(OomphPlayer $player, float $extra = 1.0): void {
+    public function fail(OomphPlayer $player, float $extra = 1.0, array $debugData = []): void {
         // Increment buffer (capped at maxBuffer)
         $this->buffer = min($this->buffer + $extra, $this->maxBuffer);
 
@@ -95,22 +96,51 @@ abstract class Detection {
         $this->violations += $increment;
         $this->lastFlagged = $player->getServerTick();
 
-        // Fire flagged event (can be cancelled by other plugins)
-        // TODO: Implement event system
-        // $event = new PlayerFlaggedEvent($player, $this);
-        // $event->call();
-        // if ($event->isCancelled()) return;
-
-        // Check if max violations reached
-        if ($this->violations >= $this->getMaxViolations()) {
-            // Fire punishment event (can be cancelled by other plugins)
-            // TODO: Implement event system
-            // $punishEvent = new PlayerPunishmentEvent($player, $this);
-            // $punishEvent->call();
-            // if (!$punishEvent->isCancelled()) {
-                error_log("Player " . $player->getPlayer()->getName() . " triggered punishment: Unfair Advantage: " . $this->getName());
-            // }
+        // Log every flag to console
+        $playerName = $player->getPlayer()->getName();
+        $debugStr = '';
+        if ($debugData !== []) {
+            $parts = [];
+            foreach ($debugData as $key => $value) {
+                if (is_float($value)) {
+                    $parts[] = "$key=" . round($value, 3);
+                } elseif (is_scalar($value)) {
+                    $parts[] = "$key=" . (string) $value;
+                } else {
+                    $parts[] = "$key=" . gettype($value);
+                }
+            }
+            $debugStr = ' [' . implode(', ', $parts) . ']';
         }
+
+        // Console log the detection flag
+        $this->logToConsole(sprintf(
+            "[Oomph] %s flagged %s (vl=%.1f/%.0f, buffer=%.2f/%.2f)%s",
+            $playerName,
+            $this->getName(),
+            $this->violations,
+            $this->getMaxViolations(),
+            $this->buffer,
+            $this->maxBuffer,
+            $debugStr
+        ));
+
+        // Check if max violations reached (log only, no kick)
+        if ($this->violations >= $this->getMaxViolations()) {
+            $this->logToConsole(sprintf(
+                "[Oomph] %s reached max violations for %s - would be punished (Unfair Advantage)",
+                $playerName,
+                $this->getName()
+            ));
+        }
+    }
+
+    /**
+     * Log a message to console
+     */
+    protected function logToConsole(string $message): void {
+        // Use error_log for console output in PocketMine
+        error_log($message);
     }
 
     /**

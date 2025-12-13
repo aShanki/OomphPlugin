@@ -118,10 +118,12 @@ class ReachB extends Detection {
         // Check if reach exceeds threshold
         if ($this->minReach > self::MIN_REACH_THRESHOLD) {
             // Attack exceeds legitimate reach
-            $this->fail($player);
+            $this->fail($player, 1.0, [
+                'min_reach' => $this->minReach
+            ]);
         } else {
             // Legitimate reach
-            $this->pass();
+            $this->pass(0.001);
         }
     }
 

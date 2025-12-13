@@ -55,13 +55,19 @@ class BadPacketE extends Detection {
     public function process(OomphPlayer $player, float $moveVecX, float $moveVecZ): void {
         // Check if X component is out of range
         if (abs($moveVecX) > self::MAX_MOVE_VALUE) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'move_x' => $moveVecX,
+                'limit' => self::MAX_MOVE_VALUE
+            ]);
             return;
         }
 
         // Check if Z component is out of range
         if (abs($moveVecZ) > self::MAX_MOVE_VALUE) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'move_z' => $moveVecZ,
+                'limit' => self::MAX_MOVE_VALUE
+            ]);
             return;
         }
     }

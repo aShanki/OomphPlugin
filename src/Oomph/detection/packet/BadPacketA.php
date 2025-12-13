@@ -51,7 +51,10 @@ class BadPacketA extends Detection {
     public function process(OomphPlayer $player, int $currentFrame, int $lastFrame): void {
         // Flag if current frame is 0 after non-zero frame
         if ($currentFrame === 0 && $lastFrame > 0) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'current_frame' => $currentFrame,
+                'last_frame' => $lastFrame
+            ]);
         }
     }
 }

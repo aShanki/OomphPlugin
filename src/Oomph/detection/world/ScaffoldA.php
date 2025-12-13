@@ -58,7 +58,11 @@ class ScaffoldA extends Detection {
 
         if ($isZeroX && $isZeroY && $isZeroZ) {
             // Zero click position detected - likely scaffold hack
-            $this->fail($player);
+            $this->fail($player, 1.0, [
+                'click_x' => $clickPos->x,
+                'click_y' => $clickPos->y,
+                'click_z' => $clickPos->z
+            ]);
         } else {
             // Valid click position
             $this->pass();

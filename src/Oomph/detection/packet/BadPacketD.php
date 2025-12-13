@@ -56,7 +56,9 @@ class BadPacketD extends Detection {
 
         // Flag if creative action detected in non-creative mode
         if ($isCreativeAction) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'gamemode' => $player->getPlayer()->getGamemode()->name()
+            ]);
         }
     }
 }

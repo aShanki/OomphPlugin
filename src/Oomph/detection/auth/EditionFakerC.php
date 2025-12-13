@@ -71,7 +71,10 @@ class EditionFakerC extends Detection {
         // Check if input mode is within valid range
         if ($inputMode < 0 || $inputMode > $maxInputMode) {
             // Invalid input mode value
-            $this->fail($player);
+            $this->fail($player, 1.0, [
+                'input_mode' => $inputMode,
+                'max_valid' => $maxInputMode
+            ]);
             return;
         }
 
@@ -82,7 +85,10 @@ class EditionFakerC extends Detection {
 
             if (!$isMobile) {
                 // Non-mobile device using touch input mode
-                $this->fail($player);
+                $this->fail($player, 1.0, [
+                    'device_os' => $deviceOS,
+                    'input_mode' => 'touch_on_non_mobile'
+                ]);
             }
         }
     }

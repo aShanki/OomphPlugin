@@ -58,7 +58,9 @@ class BadPacketF extends Detection {
     public function process(OomphPlayer $player, int $hotbarSlot): void {
         // Check if hotbar slot is out of range [0, 9)
         if ($hotbarSlot < self::MIN_HOTBAR_SLOT || $hotbarSlot >= self::MAX_HOTBAR_SLOT) {
-            $this->fail($player, 1.0);
+            $this->fail($player, 1.0, [
+                'hotbar_slot' => $hotbarSlot
+            ]);
         }
     }
 
