@@ -23,8 +23,11 @@ class AimA extends Detection {
     /** Threshold for detecting suspiciously rounded values */
     private const ROUNDED_THRESHOLD = 3e-5;
 
-    /** Precision to round to */
-    private const ROUNDING_PRECISION = 3;
+    /** Heavy rounding precision (1 decimal place) */
+    private const ROUNDING_PRECISION_HEAVY = 1;
+
+    /** Light rounding precision (5 decimal places) */
+    private const ROUNDING_PRECISION_LIGHT = 5;
 
     public function __construct() {
         parent::__construct(
@@ -60,30 +63,34 @@ class AimA extends Detection {
         // Get movement component
         $movement = $player->getMovementComponent();
 
-        // Calculate yaw delta
-        $currentYaw = $movement->getRotation()->getY();
-        $lastYaw = $movement->getLastRotation()->getY();
-        $yawDelta = $currentYaw - $lastYaw;
-
-        // Normalize to [-180, 180]
-        $yawDelta = $this->wrapDegrees($yawDelta);
-
-        // Skip if no rotation change
-        if (abs($yawDelta) < 0.001) {
+        // Skip if player is colliding with blocks (Go: lines 58-60)
+        // Collisions can cause erratic rotation values
+        if ($movement->hasXCollision() || $movement->hasZCollision()) {
             return;
         }
 
-        // Round the yaw delta
-        $rounded = $this->roundTo($yawDelta, self::ROUNDING_PRECISION);
+        // Get absolute yaw delta from rotation delta (Go: line 62)
+        $yawDelta = abs($movement->getRotationDelta()['yaw']);
 
-        // Calculate difference between rounded and actual
-        $diff = abs($rounded - $yawDelta);
+        // Skip if no rotation change (Go: line 63-65)
+        if ($yawDelta < 1e-3) {
+            return;
+        }
 
-        // Flag if difference is suspiciously small
+        // Round to two different precisions (Go: line 67)
+        // Heavy = 1 decimal place, Light = 5 decimal places
+        $roundedHeavy = $this->roundTo($yawDelta, self::ROUNDING_PRECISION_HEAVY);
+        $roundedLight = $this->roundTo($yawDelta, self::ROUNDING_PRECISION_LIGHT);
+
+        // Calculate difference between the two rounded values (Go: line 68)
+        $diff = abs($roundedLight - $roundedHeavy);
+
+        // Flag if difference is suspiciously small (Go: lines 79-84)
         if ($diff <= self::ROUNDED_THRESHOLD) {
             $this->fail($player, 1.0, [
-                'yaw_delta' => $yawDelta,
-                'rounded' => $rounded,
+                'yaw_delta' => $this->roundTo($yawDelta, 3),
+                'rounded_heavy' => $roundedHeavy,
+                'rounded_light' => $roundedLight,
                 'diff' => $diff
             ]);
             return;

@@ -31,12 +31,16 @@ class ReachA extends Detection {
     private int $ticksSinceTeleport = 999;
     private int $correctionCooldown = 0;
 
+    // Ticks per second (standard Minecraft/Bedrock rate)
+    private const TICKS_PER_SECOND = 20;
+
     public function __construct() {
-        // From Go: FailBuffer: 1.01, MaxBuffer: 1.5, MaxViolations: 7, TrustDuration: 60 ticks
+        // From Go: FailBuffer: 1.01, MaxBuffer: 1.5, MaxViolations: 7
+        // TrustDuration: 60 * TicksPerSecond (60 seconds = 1200 ticks)
         parent::__construct(
             maxBuffer: 1.5,
             failBuffer: 1.01,
-            trustDuration: 60
+            trustDuration: 60 * self::TICKS_PER_SECOND  // 1200 ticks = 60 seconds
         );
     }
 

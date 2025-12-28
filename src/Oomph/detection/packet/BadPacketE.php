@@ -48,27 +48,26 @@ class BadPacketE extends Detection {
     /**
      * Check for invalid move vector
      *
+     * Go reference iterates both components without early return:
+     * for index := range 2 { if v := i.MoveVector[index]; v < -1.001 || v > 1.001 { ... } }
+     *
      * @param OomphPlayer $player The player to check
      * @param float $moveVecX Movement X component (strafe)
      * @param float $moveVecZ Movement Z component (forward)
      */
     public function process(OomphPlayer $player, float $moveVecX, float $moveVecZ): void {
-        // Check if X component is out of range
-        if (abs($moveVecX) > self::MAX_MOVE_VALUE) {
+        // Check both components - do NOT return early (Go checks both in loop)
+        $invalidX = abs($moveVecX) > self::MAX_MOVE_VALUE;
+        $invalidZ = abs($moveVecZ) > self::MAX_MOVE_VALUE;
+
+        if ($invalidX || $invalidZ) {
             $this->fail($player, 1.0, [
                 'move_x' => $moveVecX,
-                'limit' => self::MAX_MOVE_VALUE
-            ]);
-            return;
-        }
-
-        // Check if Z component is out of range
-        if (abs($moveVecZ) > self::MAX_MOVE_VALUE) {
-            $this->fail($player, 1.0, [
                 'move_z' => $moveVecZ,
+                'invalid_x' => $invalidX,
+                'invalid_z' => $invalidZ,
                 'limit' => self::MAX_MOVE_VALUE
             ]);
-            return;
         }
     }
 }

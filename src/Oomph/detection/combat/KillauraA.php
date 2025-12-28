@@ -61,6 +61,12 @@ class KillauraA extends Detection {
         $combatComponent = $player->getCombatComponent();
         $lastSwingTick = $combatComponent->getLastSwingTick();
 
+        // Skip check if player has never swung (lastSwingTick == 0)
+        // This prevents false positives on first attack after joining
+        if ($lastSwingTick === 0) {
+            return;
+        }
+
         // Calculate ticks since last swing (line 55 in Go)
         $tickDiff = $currentTick - $lastSwingTick;
 

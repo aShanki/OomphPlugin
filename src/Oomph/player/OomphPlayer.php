@@ -14,6 +14,7 @@ use Oomph\player\simulation\MovementSimulation;
 use Oomph\cancellation\CancellationManager;
 use Oomph\detection\DetectionManager;
 use Oomph\detection\combat\AutoclickerA;
+use Oomph\detection\combat\AutoclickerB;
 use Oomph\detection\combat\AimA;
 use Oomph\detection\combat\KillauraA;
 use Oomph\detection\combat\ReachA;
@@ -110,6 +111,7 @@ class OomphPlayer {
 
         // Combat detections
         $dm->register(new AutoclickerA());
+        $dm->register(new AutoclickerB());
         $dm->register(new AimA());
         $dm->register(new KillauraA());
         $dm->register(new ReachA());

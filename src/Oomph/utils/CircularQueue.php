@@ -73,6 +73,19 @@ class CircularQueue {
     }
 
     /**
+     * Get element at index (0 = oldest, size-1 = newest)
+     * @param int $index
+     * @return T|null
+     */
+    public function get(int $index) {
+        if ($index < 0 || $index >= $this->size) {
+            return null;
+        }
+        $actualIndex = ($this->head + $index) % $this->capacity;
+        return $this->buffer[$actualIndex] ?? null;
+    }
+
+    /**
      * Get all elements as an array (oldest to newest)
      * @return array<T>
      */

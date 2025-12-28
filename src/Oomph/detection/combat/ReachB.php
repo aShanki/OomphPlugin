@@ -25,16 +25,19 @@ class ReachB extends Detection {
     // Interpolation steps for lag compensation
     private const LERP_STEPS = 20;
 
+    // Ticks per second for TrustDuration calculation
+    private const TICKS_PER_SECOND = 20;
+
     private float $minReach = 999.0;
 
     public function __construct() {
         // MaxViolations: 15
         // FailBuffer: 1.01, MaxBuffer: 3
-        // TrustDuration: 20 ticks
+        // TrustDuration: 20 * TicksPerSecond = 400 ticks (20 seconds)
         parent::__construct(
             maxBuffer: 3.0,
             failBuffer: 1.01,
-            trustDuration: 20
+            trustDuration: 20 * self::TICKS_PER_SECOND  // 400 ticks = 20 seconds
         );
     }
 
@@ -57,6 +60,17 @@ class ReachB extends Detection {
      * @param Entity $target The target entity
      */
     public function check(OomphPlayer $player, Entity $target): void {
+        // Skip if recently teleported (Go: line 51)
+        $movement = $player->getMovementComponent();
+        if ($movement->getTicksSinceTeleport() <= 20) {
+            return;
+        }
+
+        // Skip if in correction cooldown (Go: line 51)
+        if ($movement->isInCorrectionCooldown()) {
+            return;
+        }
+
         // Get attacker's eye position
         $attackerPos = $player->getPlayer()->getPosition();
         $eyeHeight = $player->getPlayer()->getEyeHeight();
@@ -95,14 +109,14 @@ class ReachB extends Detection {
             // Interpolate position
             $lerpedPos = $this->lerp($prevPos, $currentPos, $t);
 
-            // Create bounding box at interpolated position
+            // Create bounding box at interpolated position, grown by 0.1 for tolerance (Go: entityBB.Grow(0.1))
             $interpolatedBB = new AxisAlignedBB(
-                $lerpedPos->x - $halfWidth,
-                $lerpedPos->y,
-                $lerpedPos->z - $halfDepth,
-                $lerpedPos->x + $halfWidth,
-                $lerpedPos->y + $height,
-                $lerpedPos->z + $halfDepth
+                $lerpedPos->x - $halfWidth - 0.1,
+                $lerpedPos->y - 0.1,
+                $lerpedPos->z - $halfDepth - 0.1,
+                $lerpedPos->x + $halfWidth + 0.1,
+                $lerpedPos->y + $height + 0.1,
+                $lerpedPos->z + $halfDepth + 0.1
             );
 
             // Calculate closest point on AABB to eye position

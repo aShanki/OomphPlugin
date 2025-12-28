@@ -15,12 +15,19 @@ use pocketmine\math\Vector3;
  * block placement. Legitimate players click somewhere on the block face, but
  * scaffold hacks often use zero coordinates (0, 0, 0) as the click position.
  *
- * Trigger: UseItemActionClickBlock in PlayerAuthInput (1.21.20+)
+ * Trigger: UseItemTransactionData with TriggerType=PlayerInput (1.21.20+)
+ * Go reference: Only flags when TriggerType == protocol.TriggerTypePlayerInput
  */
 class ScaffoldA extends Detection {
 
-    // Epsilon for float comparison
-    private const EPSILON = 0.0001;
+
+    // TriggerType constants from protocol
+    public const TRIGGER_TYPE_UNKNOWN = 0;
+    public const TRIGGER_TYPE_PLAYER_INPUT = 1;
+    public const TRIGGER_TYPE_SIMULATION_TICK = 2;
+
+    // Minimum version for TriggerType validation (1.21.20)
+    public const MIN_VERSION_FOR_TRIGGER = 712;  // Protocol version for 1.21.20
 
     public function __construct() {
         // MaxViolations: 5
@@ -47,25 +54,39 @@ class ScaffoldA extends Detection {
     /**
      * Check if block placement has zero click position
      *
+     * Go reference (lines 54-59):
+     * - Only applies to 1.21.20+ (VersionInRange check)
+     * - Only flags when TriggerType == protocol.TriggerTypePlayerInput
+     * - Checks ClickedPosition.LenSqr() == 0
+     *
      * @param OomphPlayer $player The player placing the block
      * @param Vector3 $clickPos The click position on the block face (0-1 range for each axis)
+     * @param int $triggerType The trigger type from UseItemTransactionData
+     * @param int $protocolVersion The client's protocol version
      */
-    public function check(OomphPlayer $player, Vector3 $clickPos): void {
-        // Check if all components of click position are zero (or near zero)
-        $isZeroX = abs($clickPos->x) < self::EPSILON;
-        $isZeroY = abs($clickPos->y) < self::EPSILON;
-        $isZeroZ = abs($clickPos->z) < self::EPSILON;
+    public function check(OomphPlayer $player, Vector3 $clickPos, int $triggerType = self::TRIGGER_TYPE_PLAYER_INPUT, int $protocolVersion = 999): void {
+        // Go: Only check for 1.21.20+ (protocol version 712+)
+        if ($protocolVersion < self::MIN_VERSION_FOR_TRIGGER) {
+            return;
+        }
 
-        if ($isZeroX && $isZeroY && $isZeroZ) {
+        // Go: Only flag when TriggerType == TriggerTypePlayerInput
+        // On older versions or simulation ticks, don't flag
+        if ($triggerType !== self::TRIGGER_TYPE_PLAYER_INPUT) {
+            return;
+        }
+
+        // Check if click position length squared is zero (Go: ClickedPosition.LenSqr() == 0)
+        $lenSqr = $clickPos->x * $clickPos->x + $clickPos->y * $clickPos->y + $clickPos->z * $clickPos->z;
+
+        if ($lenSqr === 0.0) {
             // Zero click position detected - likely scaffold hack
             $this->fail($player, 1.0, [
                 'click_x' => $clickPos->x,
                 'click_y' => $clickPos->y,
-                'click_z' => $clickPos->z
+                'click_z' => $clickPos->z,
+                'trigger_type' => $triggerType
             ]);
-        } else {
-            // Valid click position
-            $this->pass();
         }
     }
 
@@ -76,18 +97,31 @@ class ScaffoldA extends Detection {
      * @param float $clickX Click X position (0-1 range)
      * @param float $clickY Click Y position (0-1 range)
      * @param float $clickZ Click Z position (0-1 range)
+     * @param int $triggerType The trigger type from UseItemTransactionData
+     * @param int $protocolVersion The client's protocol version
      */
-    public function checkComponents(OomphPlayer $player, float $clickX, float $clickY, float $clickZ): void {
-        $isZeroX = abs($clickX) < self::EPSILON;
-        $isZeroY = abs($clickY) < self::EPSILON;
-        $isZeroZ = abs($clickZ) < self::EPSILON;
+    public function checkComponents(OomphPlayer $player, float $clickX, float $clickY, float $clickZ, int $triggerType = self::TRIGGER_TYPE_PLAYER_INPUT, int $protocolVersion = 999): void {
+        // Go: Only check for 1.21.20+ (protocol version 712+)
+        if ($protocolVersion < self::MIN_VERSION_FOR_TRIGGER) {
+            return;
+        }
 
-        if ($isZeroX && $isZeroY && $isZeroZ) {
+        // Go: Only flag when TriggerType == TriggerTypePlayerInput
+        if ($triggerType !== self::TRIGGER_TYPE_PLAYER_INPUT) {
+            return;
+        }
+
+        // Check if click position length squared is zero (Go: ClickedPosition.LenSqr() == 0)
+        $lenSqr = $clickX * $clickX + $clickY * $clickY + $clickZ * $clickZ;
+
+        if ($lenSqr === 0.0) {
             // Zero click position detected - likely scaffold hack
-            $this->fail($player);
-        } else {
-            // Valid click position
-            $this->pass();
+            $this->fail($player, 1.0, [
+                'click_x' => $clickX,
+                'click_y' => $clickY,
+                'click_z' => $clickZ,
+                'trigger_type' => $triggerType
+            ]);
         }
     }
 }

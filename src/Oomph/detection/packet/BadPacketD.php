@@ -45,19 +45,24 @@ class BadPacketD extends Detection {
     /**
      * Check for creative transaction in survival
      *
+     * Go reference checks both GameTypeCreative AND GameTypeCreativeSpectator:
+     * if d.mPlayer.GameMode != packet.GameTypeCreative && d.mPlayer.GameMode != packet.GameTypeCreativeSpectator
+     *
      * @param OomphPlayer $player The player to check
      * @param bool $isCreativeAction Whether a creative action was detected
      */
     public function process(OomphPlayer $player, bool $isCreativeAction): void {
-        // Only flag if not in creative mode
-        if ($player->getPlayer()->getGamemode() === GameMode::CREATIVE()) {
+        $gamemode = $player->getPlayer()->getGamemode();
+
+        // Allow creative actions in Creative or Spectator mode (Go: both GameTypeCreative and GameTypeCreativeSpectator)
+        if ($gamemode === GameMode::CREATIVE() || $gamemode === GameMode::SPECTATOR()) {
             return;
         }
 
-        // Flag if creative action detected in non-creative mode
+        // Flag if creative action detected in non-creative/spectator mode
         if ($isCreativeAction) {
             $this->fail($player, 1.0, [
-                'gamemode' => $player->getPlayer()->getGamemode()->name()
+                'gamemode' => $gamemode->name()
             ]);
         }
     }

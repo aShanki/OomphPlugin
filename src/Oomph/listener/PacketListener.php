@@ -9,6 +9,7 @@ use Oomph\player\PlayerManager;
 use Oomph\player\OomphPlayer;
 use Oomph\entity\TrackedEntity;
 use Oomph\detection\combat\AutoclickerA;
+use Oomph\detection\combat\AutoclickerB;
 use Oomph\detection\combat\AimA;
 use Oomph\detection\combat\KillauraA;
 use Oomph\detection\combat\ReachA;
@@ -156,6 +157,12 @@ class PacketListener implements Listener {
         $autoclickerA = $dm->get("AutoclickerA");
         if ($autoclickerA instanceof AutoclickerA) {
             $autoclickerA->process($oomphPlayer, $leftClick, false);
+        }
+
+        // AutoclickerB: Check click timing consistency
+        $autoclickerB = $dm->get("AutoclickerB");
+        if ($autoclickerB instanceof AutoclickerB) {
+            $autoclickerB->process($oomphPlayer, $leftClick);
         }
 
         // BadPacketE: Validate moveVec is within [-1.001, 1.001]

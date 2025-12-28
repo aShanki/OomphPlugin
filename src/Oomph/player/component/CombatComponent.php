@@ -23,6 +23,10 @@ class CombatComponent {
     public const SURVIVAL_REACH = 2.9;
     public const SNEAKING_EYE_HEIGHT = 1.54;  // 1.8 - 0.26
     public const DEFAULT_EYE_HEIGHT = 1.62;   // Normal standing eye height
+    public const DEFAULT_TOUCH_ANGLE = 90.0;  // Default max attack angle for touch mode
+
+    // Configurable maximum attack angle for touch mode (Go: Opts().Combat.MaximumAttackAngle)
+    private float $maximumAttackAngle = self::DEFAULT_TOUCH_ANGLE;
 
     // Entity tracking for lag compensation
     private EntityTracker $entityTracker;
@@ -221,9 +225,10 @@ class CombatComponent {
         }
 
         // Touch mode: allow hits based on raw distance if raycast didn't hit
+        // Go reference line 329: closestAngle <= c.mPlayer.Opts().Combat.MaximumAttackAngle
         if (!$hitValid && $inputMode === 0) { // 0 = touch
             // Touch players can hit if close enough and looking roughly at target
-            $hitValid = $closestRawDist <= self::SURVIVAL_REACH && $closestAngle <= 90.0;
+            $hitValid = $closestRawDist <= self::SURVIVAL_REACH && $closestAngle <= $this->maximumAttackAngle;
         }
 
         return $hitValid;
@@ -406,5 +411,19 @@ class CombatComponent {
         $this->rawResults = [];
         $this->angleResults = [];
         $this->attacked = false;
+    }
+
+    /**
+     * Set maximum attack angle for touch mode (Go: Opts().Combat.MaximumAttackAngle)
+     */
+    public function setMaximumAttackAngle(float $angle): void {
+        $this->maximumAttackAngle = $angle;
+    }
+
+    /**
+     * Get maximum attack angle for touch mode
+     */
+    public function getMaximumAttackAngle(): float {
+        return $this->maximumAttackAngle;
     }
 }
