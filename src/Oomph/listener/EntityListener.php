@@ -12,6 +12,7 @@ use pocketmine\event\server\DataPacketSendEvent;
 use pocketmine\network\mcpe\protocol\AddActorPacket;
 use pocketmine\network\mcpe\protocol\AddPlayerPacket;
 use pocketmine\network\mcpe\protocol\MoveActorAbsolutePacket;
+use pocketmine\network\mcpe\protocol\MovePlayerPacket;
 use pocketmine\network\mcpe\protocol\RemoveActorPacket;
 use pocketmine\network\mcpe\protocol\SetActorMotionPacket;
 use pocketmine\player\Player;
@@ -137,6 +138,10 @@ class EntityListener implements Listener {
             elseif ($packet instanceof MoveActorAbsolutePacket) {
                 $this->handleMoveActor($packet, $receivers);
             }
+            // Track MovePlayerPacket (for other players' movement)
+            elseif ($packet instanceof MovePlayerPacket) {
+                $this->handleMovePlayer($packet, $receivers);
+            }
             // Track SetActorMotionPacket
             elseif ($packet instanceof SetActorMotionPacket) {
                 $this->handleSetActorMotion($packet, $receivers);
@@ -230,6 +235,48 @@ class EntityListener implements Listener {
         foreach ($receivers as $receiver) {
             $player = $receiver->getPlayer();
             if ($player === null) {
+                continue;
+            }
+
+            $oomphPlayer = $this->playerManager->getOomphPlayer($player);
+            if ($oomphPlayer === null) {
+                continue;
+            }
+
+            $entityTracker = $oomphPlayer->getCombatComponent()->getEntityTracker();
+            if ($entityTracker->hasEntity($runtimeId)) {
+                $entityTracker->updateEntity($runtimeId, $position, $serverTick, $wasTeleport);
+            }
+        }
+    }
+
+    /**
+     * Handle MovePlayerPacket - player entity moved
+     *
+     * MovePlayerPacket contains positions at eye level for players.
+     * Based on Go reference (entities.go lines 52-64), we subtract the
+     * DefaultPlayerHeightOffset (1.62) to get feet-level position for bounding box.
+     *
+     * @param array<\pocketmine\network\mcpe\NetworkSession> $receivers
+     */
+    private function handleMovePlayer(MovePlayerPacket $packet, array $receivers): void {
+        $runtimeId = $packet->actorRuntimeId;
+
+        // MovePlayerPacket position is at eye level - adjust to feet level
+        // Go: pos[1] -= game.DefaultPlayerHeightOffset (1.62)
+        $position = $packet->position->subtract(0, EntityDimensions::PLAYER_EYE_HEIGHT, 0);
+
+        $serverTick = Server::getInstance()->getTick();
+        $wasTeleport = ($packet->mode === MovePlayerPacket::MODE_TELEPORT);
+
+        foreach ($receivers as $receiver) {
+            $player = $receiver->getPlayer();
+            if ($player === null) {
+                continue;
+            }
+
+            // Skip if this is the receiver's own movement (they track themselves differently)
+            if ($player->getId() === $runtimeId) {
                 continue;
             }
 

@@ -13,6 +13,7 @@ class EntityDimensions {
     // Player dimensions
     public const PLAYER_WIDTH = 0.6;
     public const PLAYER_HEIGHT = 1.8;
+    public const PLAYER_EYE_HEIGHT = 1.62; // DefaultPlayerHeightOffset from Go reference
 
     // Hostile mobs
     public const ZOMBIE_WIDTH = 0.6;

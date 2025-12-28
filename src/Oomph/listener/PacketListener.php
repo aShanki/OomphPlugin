@@ -318,18 +318,9 @@ class PacketListener implements Listener {
                         $reachB->check($oomphPlayer, $target);
                     }
 
-                    // HitboxA: Validate client-reported click position
-                    $hitboxA = $dm->get("HitboxA");
-                    if ($hitboxA instanceof HitboxA) {
-                        $clickPos = $transactionData->getClickPosition();
-                        $hitboxA->check($oomphPlayer, $trackedEntity, $clickPos);
-
-                        // Check if hitbox detection wants to cancel
-                        if ($hitboxA->isCancellable() && $hitboxA->shouldCancel()) {
-                            $shouldCancelAttack = true;
-                            $oomphPlayer->getCancellationManager()->setCancelAttack(true, "HitboxA");
-                        }
-                    }
+                    // NOTE: HitboxA is now handled in handleInteract() using the correct
+                    // InteractPacket::ACTION_MOUSEOVER position data instead of the attack
+                    // transaction's click position (which was causing false positives)
 
                     // Cancel attack if any detection flagged OR hit validation failed
                     if ($shouldCancelAttack || !$isValidHit) {
@@ -403,23 +394,65 @@ class PacketListener implements Listener {
         }
     }
 
-    /** @phpstan-ignore void.pure */
+    /**
+     * Handle InteractPacket - specifically ACTION_MOUSEOVER for HitboxA detection
+     *
+     * The Go reference (hitbox_a.go lines 52-74) uses InteractPacket with
+     * ACTION_MOUSEOVER which contains the client's reported hitbox intersection point.
+     * This is the correct packet for HitboxA validation, NOT the attack transaction.
+     */
     private function handleInteract(InteractPacket $packet, OomphPlayer $oomphPlayer): void {
-        // InteractPacket ACTION_MOUSEOVER is essentially spam from the client
-        // (sent when changing held item due to Mojang hacks) - ignore it
-        //
-        // HitboxA detection is handled in handleInventoryTransaction() using
-        // UseItemOnEntityTransactionData::getClickPosition() which provides
-        // the actual client-reported click position on the entity hitbox
-        //
-        // InteractPacket only has: action, targetActorRuntimeId (no position data)
-
-        if ($packet->action === InteractPacket::ACTION_MOUSEOVER) {
-            return; // Ignore mouseover spam
+        // ACTION_MOUSEOVER contains x, y, z position data where client's
+        // raycast intersected the target entity's bounding box
+        if ($packet->action !== InteractPacket::ACTION_MOUSEOVER) {
+            return;
         }
 
-        // For ACTION_OPEN_INVENTORY, we could track if player opens inventory
-        // while targeting an entity, but this isn't useful for anticheat
+        $dm = $oomphPlayer->getDetectionManager();
+        $combatComponent = $oomphPlayer->getCombatComponent();
+        $entityTracker = $combatComponent->getEntityTracker();
+
+        // Get the click position from InteractPacket (x, y, z fields)
+        // These fields are only present when action == ACTION_MOUSEOVER
+        $clickPosition = new Vector3($packet->x, $packet->y, $packet->z);
+
+        // Skip if position is zero/empty (Go: pk.Position == utils.EmptyVec32)
+        if ($clickPosition->x === 0.0 && $clickPosition->y === 0.0 && $clickPosition->z === 0.0) {
+            return;
+        }
+
+        // Get target entity from tracker
+        $targetRuntimeId = $packet->targetActorRuntimeId;
+        $trackedEntity = $entityTracker->getEntity($targetRuntimeId);
+
+        if ($trackedEntity === null) {
+            // Try to add from world entity if not tracked
+            $player = $oomphPlayer->getPlayer();
+            $world = $player->getWorld();
+            $target = $world->getEntity($targetRuntimeId);
+
+            if ($target instanceof \pocketmine\entity\Living) {
+                $entityTracker->addEntity(
+                    runtimeId: $targetRuntimeId,
+                    position: $target->getPosition()->asVector3(),
+                    width: $target->getSize()->getWidth(),
+                    height: $target->getSize()->getHeight(),
+                    scale: $target->getScale(),
+                    isPlayer: $target instanceof \pocketmine\player\Player
+                );
+                $trackedEntity = $entityTracker->getEntity($targetRuntimeId);
+            }
+        }
+
+        if ($trackedEntity === null) {
+            return;
+        }
+
+        // Run HitboxA check with the correct InteractPacket position data
+        $hitboxA = $dm->get("HitboxA");
+        if ($hitboxA instanceof HitboxA) {
+            $hitboxA->check($oomphPlayer, $trackedEntity, $clickPosition);
+        }
     }
 
     private function handleAnimate(AnimatePacket $packet, OomphPlayer $oomphPlayer): void {
