@@ -65,7 +65,7 @@ class AimA extends Detection {
 
         // Skip if player is colliding with blocks (Go: lines 58-60)
         // Collisions can cause erratic rotation values
-        if ($movement->hasXCollision() || $movement->hasZCollision()) {
+        if ($movement->hasCollisionX() || $movement->hasCollisionZ()) {
             return;
         }
 

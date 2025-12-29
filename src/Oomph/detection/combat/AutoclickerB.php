@@ -20,6 +20,8 @@ use Oomph\player\OomphPlayer;
  * - Coefficient of Variation (CV) = stddev / mean
  * - Low CV (<0.15) with high CPS (>8) indicates robotic clicking
  * - Very low std dev (<0.3) alone is also suspicious at any CPS
+ *
+ * Tracks both left clicks (combat) and right clicks (block placement).
  */
 class AutoclickerB extends Detection {
 
@@ -59,28 +61,73 @@ class AutoclickerB extends Detection {
     }
 
     /**
-     * Process click consistency check
+     * Process click consistency check for both left and right clicks
      *
      * @param OomphPlayer $player The player to check
      * @param bool $leftClick Whether left click occurred this tick
+     * @param bool $rightClick Whether right click occurred this tick
      */
-    public function process(OomphPlayer $player, bool $leftClick): void {
-        if (!$leftClick) {
+    public function process(OomphPlayer $player, bool $leftClick, bool $rightClick = false): void {
+        if (!$leftClick && !$rightClick) {
             return; // Only check on click events
         }
 
         $clicks = $player->getClicksComponent();
-        $leftCPS = $clicks->getLeftCPS();
+        $isMobile = $player->isMobileDevice();
+        $absThreshold = $isMobile ? self::ABSOLUTE_STDDEV_THRESHOLD_MOBILE : self::ABSOLUTE_STDDEV_THRESHOLD;
 
+        // Check left click consistency
+        if ($leftClick) {
+            $this->checkClickConsistency(
+                $player,
+                $clicks->getLeftCPS(),
+                $clicks->getLeftIntervalStdDev(),
+                $clicks->getLeftIntervalMean(),
+                $clicks->getLeftIntervals()->count(),
+                $absThreshold,
+                'left'
+            );
+        }
+
+        // Check right click consistency (block placement)
+        if ($rightClick) {
+            $this->checkClickConsistency(
+                $player,
+                $clicks->getRightCPS(),
+                $clicks->getRightIntervalStdDev(),
+                $clicks->getRightIntervalMean(),
+                $clicks->getRightIntervals()->count(),
+                $absThreshold,
+                'right'
+            );
+        }
+    }
+
+    /**
+     * Check click consistency for a specific click type
+     *
+     * @param OomphPlayer $player The player to check
+     * @param int $cps Current clicks per second
+     * @param float $stdDev Standard deviation of intervals
+     * @param float $mean Mean of intervals
+     * @param int $samples Number of samples
+     * @param float $absThreshold Absolute stddev threshold
+     * @param string $clickType 'left' or 'right'
+     */
+    private function checkClickConsistency(
+        OomphPlayer $player,
+        int $cps,
+        float $stdDev,
+        float $mean,
+        int $samples,
+        float $absThreshold,
+        string $clickType
+    ): void {
         // Need minimum CPS to check - slow clicking naturally has high variance
-        if ($leftCPS < self::MIN_CPS_THRESHOLD) {
+        if ($cps < self::MIN_CPS_THRESHOLD) {
             $this->pass(0.05);
             return;
         }
-
-        // Get interval statistics
-        $stdDev = $clicks->getLeftIntervalStdDev();
-        $mean = $clicks->getLeftIntervalMean();
 
         // Need enough samples for reliable analysis
         if ($stdDev < 0 || $mean < 0) {
@@ -90,9 +137,6 @@ class AutoclickerB extends Detection {
         // Calculate coefficient of variation
         $cv = $mean > 0 ? $stdDev / $mean : 0;
 
-        $isMobile = $player->isMobileDevice();
-        $absThreshold = $isMobile ? self::ABSOLUTE_STDDEV_THRESHOLD_MOBILE : self::ABSOLUTE_STDDEV_THRESHOLD;
-
         // Check for suspicious consistency
         $suspicious = false;
         $reason = '';
@@ -101,7 +145,7 @@ class AutoclickerB extends Detection {
             // Very low absolute std dev - almost robotic timing
             $suspicious = true;
             $reason = 'low_stddev';
-        } elseif ($cv < self::CV_THRESHOLD && $leftCPS >= 12) {
+        } elseif ($cv < self::CV_THRESHOLD && $cps >= 12) {
             // Low coefficient of variation at high CPS
             $suspicious = true;
             $reason = 'low_cv';
@@ -109,12 +153,13 @@ class AutoclickerB extends Detection {
 
         if ($suspicious) {
             $this->fail($player, 1.0, [
+                'click_type' => $clickType,
                 'reason' => $reason,
-                'cps' => $leftCPS,
-                'stddev' => $stdDev,
-                'mean' => $mean,
-                'cv' => $cv,
-                'samples' => $clicks->getLeftIntervals()->count()
+                'cps' => $cps,
+                'stddev' => round($stdDev, 4),
+                'mean' => round($mean, 4),
+                'cv' => round($cv, 4),
+                'samples' => $samples
             ]);
         } else {
             // Legitimate variance - decay buffer

@@ -8,7 +8,6 @@ use Oomph\Main;
 use Oomph\player\PlayerManager;
 use Oomph\player\OomphPlayer;
 use Oomph\entity\TrackedEntity;
-use Oomph\detection\combat\AutoclickerA;
 use Oomph\detection\combat\AutoclickerB;
 use Oomph\detection\combat\AimA;
 use Oomph\detection\combat\KillauraA;
@@ -153,13 +152,7 @@ class PacketListener implements Listener {
             $aimA->process($oomphPlayer);
         }
 
-        // AutoclickerA: Check CPS limits
-        $autoclickerA = $dm->get("AutoclickerA");
-        if ($autoclickerA instanceof AutoclickerA) {
-            $autoclickerA->process($oomphPlayer, $leftClick, false);
-        }
-
-        // AutoclickerB: Check click timing consistency
+        // AutoclickerB: Check click timing consistency (left and right clicks)
         $autoclickerB = $dm->get("AutoclickerB");
         if ($autoclickerB instanceof AutoclickerB) {
             $autoclickerB->process($oomphPlayer, $leftClick);
@@ -215,8 +208,18 @@ class PacketListener implements Listener {
                 }
             }
 
-            // ScaffoldA: Check for zero click position on block clicks
+            // Track right clicks for block placement/interaction
             if ($actionType === UseItemTransactionData::ACTION_CLICK_BLOCK) {
+                $clicks = $oomphPlayer->getClicksComponent();
+                $clicks->incrementRightClicks();
+
+                // AutoclickerB: Check right click consistency for block placement
+                $autoclickerB = $dm->get("AutoclickerB");
+                if ($autoclickerB instanceof AutoclickerB) {
+                    $autoclickerB->process($oomphPlayer, false, true);
+                }
+
+                // ScaffoldA: Check for zero click position on block clicks
                 $scaffoldA = $dm->get("ScaffoldA");
                 if ($scaffoldA instanceof ScaffoldA) {
                     $clickPos = $transactionData->getClickPosition();
@@ -419,14 +422,23 @@ class PacketListener implements Listener {
         $combatComponent = $oomphPlayer->getCombatComponent();
         $entityTracker = $combatComponent->getEntityTracker();
 
-        // Get the click position from InteractPacket (x, y, z fields)
-        // These fields are only present when action == ACTION_MOUSEOVER
-        $clickPosition = new Vector3($packet->x, $packet->y, $packet->z);
-
-        // Skip if position is zero/empty (Go: pk.Position == utils.EmptyVec32)
-        if ($clickPosition->x === 0.0 && $clickPosition->y === 0.0 && $clickPosition->z === 0.0) {
+        // Get the click position from InteractPacket (x, y, z fields for ACTION_MOUSEOVER)
+        // These typed properties are only initialized for ACTION_MOUSEOVER
+        // Use reflection to check if properties are initialized before accessing
+        $ref = new \ReflectionClass($packet);
+        if (!$ref->getProperty('x')->isInitialized($packet)) {
             return;
         }
+
+        $x = $packet->x;
+        $y = $packet->y;
+        $z = $packet->z;
+
+        // Skip if position is zero/empty (Go: pk.Position == utils.EmptyVec32)
+        if ($x === 0.0 && $y === 0.0 && $z === 0.0) {
+            return;
+        }
+        $clickPosition = new Vector3($x, $y, $z);
 
         // Get target entity from tracker
         $targetRuntimeId = $packet->targetActorRuntimeId;

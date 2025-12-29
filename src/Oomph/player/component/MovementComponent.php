@@ -580,6 +580,10 @@ class MovementComponent {
         $this->ticksSinceCorrection++;
     }
 
+    public function isInCorrectionCooldown(): bool {
+        return $this->ticksSinceCorrection < 10 || $this->pendingCorrections > 0;
+    }
+
     // Supporting block
     public function getSupportingBlockPos(): ?Vector3 {
         return $this->supportingBlockPos;
