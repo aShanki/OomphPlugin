@@ -424,9 +424,9 @@ class PacketListener implements Listener {
 
         // Get the click position from InteractPacket (x, y, z fields for ACTION_MOUSEOVER)
         // These typed properties are only initialized for ACTION_MOUSEOVER
-        // Use reflection to check if properties are initialized before accessing
-        $ref = new \ReflectionClass($packet);
-        if (!$ref->getProperty('x')->isInitialized($packet)) {
+        // isset() returns false for uninitialized typed properties
+        if (!isset($packet->x, $packet->y, $packet->z)) {
+            // Properties not initialized - skip HitboxA check
             return;
         }
 
