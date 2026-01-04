@@ -10,41 +10,43 @@ use Oomph\player\OomphPlayer;
 /**
  * AutoclickerB Detection
  *
- * Purpose: Detect autoclickers by analyzing click timing consistency
+ * Purpose: Detect autoclickers by analyzing click timing consistency over long periods
  * Method: Calculate standard deviation and coefficient of variation of click intervals
  *
  * Human clicks have natural variance - they are not perfectly timed.
  * Autoclickers produce suspiciously consistent intervals (low std dev).
  *
  * Detection logic:
+ * - Tracks up to 100 click intervals for long-term analysis
  * - Coefficient of Variation (CV) = stddev / mean
- * - Low CV (<0.15) with high CPS (>8) indicates robotic clicking
- * - Very low std dev (<0.3) alone is also suspicious at any CPS
+ * - Low CV (<0.12) with high CPS (>10) indicates robotic clicking
+ * - Very low std dev (<0.25) alone is suspicious at any CPS
+ * - Also flags if std dev is suspiciously constant over time
  *
  * Tracks both left clicks (combat) and right clicks (block placement).
  */
 class AutoclickerB extends Detection {
 
-    /** @phpstan-ignore classConstant.unused */
-    private const MIN_SAMPLES = 10;
+    /** Minimum samples needed for reliable analysis */
+    private const MIN_SAMPLES = 20;
 
-    /** Minimum CPS to trigger consistency check (too low CPS could be legitimate slow clicking) */
-    private const MIN_CPS_THRESHOLD = 8;
+    /** Minimum CPS to trigger consistency check */
+    private const MIN_CPS_THRESHOLD = 2;
 
     /** Coefficient of variation threshold - below this is suspicious */
-    private const CV_THRESHOLD = 0.15;
+    private const CV_THRESHOLD = 0.08;
 
-    /** Absolute std dev threshold - below this is always suspicious regardless of CV */
-    private const ABSOLUTE_STDDEV_THRESHOLD = 0.3;
+    /** Absolute std dev threshold - below this is always suspicious */
+    private const ABSOLUTE_STDDEV_THRESHOLD = 0.15;
 
     /** Std dev threshold for mobile (more lenient due to touch mechanics) */
-    private const ABSOLUTE_STDDEV_THRESHOLD_MOBILE = 0.2;
+    private const ABSOLUTE_STDDEV_THRESHOLD_MOBILE = 0.10;
 
     public function __construct() {
         parent::__construct(
-            maxBuffer: 5.0,
+            maxBuffer: 6.0,
             failBuffer: 3.0,
-            trustDuration: 600 // 30 seconds (600 ticks) to build trust
+            trustDuration: 400 // 20 seconds to build trust
         );
     }
 
@@ -129,8 +131,8 @@ class AutoclickerB extends Detection {
             return;
         }
 
-        // Need enough samples for reliable analysis
-        if ($stdDev < 0 || $mean < 0) {
+        // Need enough samples for reliable long-term analysis
+        if ($stdDev < 0 || $mean < 0 || $samples < self::MIN_SAMPLES) {
             return; // Not enough samples yet
         }
 
@@ -138,6 +140,8 @@ class AutoclickerB extends Detection {
         $cv = $mean > 0 ? $stdDev / $mean : 0;
 
         // Check for suspicious consistency
+        // Only flag for truly robotic patterns - low stddev OR low CV
+        // Removed constant_pattern check as it false-flags butterfly clicking
         $suspicious = false;
         $reason = '';
 
@@ -145,8 +149,8 @@ class AutoclickerB extends Detection {
             // Very low absolute std dev - almost robotic timing
             $suspicious = true;
             $reason = 'low_stddev';
-        } elseif ($cv < self::CV_THRESHOLD && $cps >= 12) {
-            // Low coefficient of variation at high CPS
+        } elseif ($cv < self::CV_THRESHOLD && $cps >= 5) {
+            // Low coefficient of variation at moderate+ CPS
             $suspicious = true;
             $reason = 'low_cv';
         }
@@ -163,7 +167,7 @@ class AutoclickerB extends Detection {
             ]);
         } else {
             // Legitimate variance - decay buffer
-            $this->pass(0.15);
+            $this->pass(0.1);
         }
     }
 }

@@ -13,7 +13,11 @@ use Oomph\player\correction\CorrectionHandler;
 use Oomph\player\simulation\MovementSimulation;
 use Oomph\cancellation\CancellationManager;
 use Oomph\detection\DetectionManager;
+use Oomph\detection\combat\AutoclickerA;
 use Oomph\detection\combat\AutoclickerB;
+use Oomph\detection\combat\AutoclickerC;
+use Oomph\detection\combat\AutoclickerD;
+use Oomph\detection\combat\AutoclickerE;
 use Oomph\detection\combat\AimA;
 use Oomph\detection\combat\KillauraA;
 use Oomph\detection\combat\ReachA;
@@ -29,7 +33,12 @@ use Oomph\detection\packet\BadPacketG;
 use Oomph\detection\auth\EditionFakerA;
 use Oomph\detection\auth\EditionFakerB;
 use Oomph\detection\auth\EditionFakerC;
+use Oomph\detection\movement\GroundSpoofA;
 use Oomph\detection\movement\InvMoveA;
+use Oomph\detection\movement\MovementA;
+use Oomph\detection\movement\NoSlowA;
+use Oomph\detection\movement\TimerA;
+use Oomph\detection\movement\VelocityA;
 use Oomph\detection\world\ScaffoldA;
 
 /**
@@ -109,9 +118,11 @@ class OomphPlayer {
         $dm = $this->detectionManager;
 
         // Combat detections
-        // AutoclickerA (max CPS check) removed - too many false positives
-        // Only using AutoclickerB (consistency check) for autoclick detection
-        $dm->register(new AutoclickerB());
+        $dm->register(new AutoclickerA()); // CPS limit check (25 CPS max)
+        $dm->register(new AutoclickerB()); // Consistency check (long-term pattern)
+        $dm->register(new AutoclickerC()); // Distribution analysis (kurtosis/skewness/entropy)
+        $dm->register(new AutoclickerD()); // Sequence analysis (runs test/autocorrelation)
+        $dm->register(new AutoclickerE()); // Burst pattern analysis (cross-burst consistency)
         $dm->register(new AimA());
         $dm->register(new KillauraA());
         $dm->register(new ReachA());
@@ -134,6 +145,11 @@ class OomphPlayer {
 
         // Movement detections
         $dm->register(new InvMoveA());
+        $dm->register(new MovementA());
+        $dm->register(new TimerA());
+        $dm->register(new GroundSpoofA());
+        $dm->register(new VelocityA());
+        $dm->register(new NoSlowA());
 
         // World detections
         $dm->register(new ScaffoldA());
@@ -332,6 +348,16 @@ class OomphPlayer {
             $serverPos = $this->movementComponent->getAuthPosition();
 
             if ($this->correctionHandler->shouldCorrect($serverPos, $clientPos)) {
+                // Calculate distance for MovementA detection
+                $diff = $serverPos->subtract($clientPos->x, $clientPos->y, $clientPos->z);
+                $distance = sqrt($diff->x * $diff->x + $diff->y * $diff->y + $diff->z * $diff->z);
+
+                // Flag MovementA detection (catches speed/fly hacks)
+                $movementA = $this->detectionManager->get("MovementA");
+                if ($movementA instanceof MovementA) {
+                    $movementA->onCorrection($this, $clientPos, $serverPos, $distance);
+                }
+
                 $this->correctionHandler->sendCorrection();
 
                 // Notify ReachA of correction

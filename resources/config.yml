@@ -1,0 +1,12 @@
+# OomphPlugin Configuration
+# -------------------------
+
+# Discord Webhook Settings
+# The webhook URL is read from the OOMPH_WEBHOOK_URL environment variable
+# This keeps sensitive URLs out of the codebase
+webhook:
+  # Whether to send notifications for every flag (true) or only max violations (false)
+  notify_all_flags: true
+
+  # Minimum violation level to trigger webhook notification (0 = all violations)
+  min_violation_level: 0

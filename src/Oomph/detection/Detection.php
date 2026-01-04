@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Oomph\detection;
 
 use Oomph\player\OomphPlayer;
+use Oomph\utils\WebhookNotifier;
 
 /**
  * Abstract base class for all anticheat detections
@@ -126,13 +127,27 @@ abstract class Detection {
         ));
 
         // Check if max violations reached (log only, no kick)
-        if ($this->violations >= $this->getMaxViolations()) {
+        $isMaxViolation = $this->violations >= $this->getMaxViolations();
+        if ($isMaxViolation) {
             $this->logToConsole(sprintf(
                 "[Oomph] %s reached max violations for %s - would be punished (Unfair Advantage)",
                 $playerName,
                 $this->getName()
             ));
         }
+
+        // Send webhook notification
+        WebhookNotifier::sendDetection(
+            $playerName,
+            $this->getName(),
+            $this->getType(),
+            $this->violations,
+            $this->getMaxViolations(),
+            $this->buffer,
+            $this->maxBuffer,
+            $debugData,
+            $isMaxViolation
+        );
     }
 
     /**

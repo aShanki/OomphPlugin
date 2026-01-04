@@ -10,48 +10,35 @@ use Oomph\player\OomphPlayer;
 /**
  * AutoclickerA Detection
  *
- * Purpose: Detect players clicking faster than humanly possible
- * Method: Track CPS (Clicks Per Second) in 1-second circular buffer
+ * Purpose: Detect autoclickers by flagging CPS above 25 for left/right click.
+ * 25 CPS is beyond human capability for sustained clicking.
  *
- * Desktop limits: ~20 CPS left click, ~20 CPS right click
- * Mobile limits: ~25 CPS (higher threshold for touch screens)
+ * Detection logic:
+ * - Left click CPS > 25 = flag
+ * - Right click CPS > 25 = flag
+ * - Tracks sustained high CPS over multiple ticks to avoid false positives
  */
 class AutoclickerA extends Detection {
 
-    /** Default CPS limit for desktop left click */
-    private const DEFAULT_LEFT_CPS_LIMIT = 20;
+    /** Maximum allowed CPS before flagging */
+    private const MAX_CPS = 25;
 
-    /** Default CPS limit for desktop right click */
-    private const DEFAULT_RIGHT_CPS_LIMIT = 20;
+    /** Maximum CPS for mobile (same as desktop - 25 is the hard limit) */
+    private const MAX_CPS_MOBILE = 25;
 
-    /** Default CPS limit for mobile left click */
-    private const DEFAULT_LEFT_CPS_LIMIT_MOBILE = 25;
+    /** Consecutive ticks above threshold before flagging */
+    private int $leftViolationTicks = 0;
+    private int $rightViolationTicks = 0;
 
-    /** Default CPS limit for mobile right click */
-    private const DEFAULT_RIGHT_CPS_LIMIT_MOBILE = 25;
+    /** Threshold ticks to confirm autoclicker (not just a spike) */
+    private const VIOLATION_TICK_THRESHOLD = 3;
 
-    /** CPS limits (configurable) */
-    private int $leftCPSLimit;
-    private int $rightCPSLimit;
-    private int $leftCPSLimitMobile;
-    private int $rightCPSLimitMobile;
-
-    public function __construct(
-        int $leftCPSLimit = self::DEFAULT_LEFT_CPS_LIMIT,
-        int $rightCPSLimit = self::DEFAULT_RIGHT_CPS_LIMIT,
-        int $leftCPSLimitMobile = self::DEFAULT_LEFT_CPS_LIMIT_MOBILE,
-        int $rightCPSLimitMobile = self::DEFAULT_RIGHT_CPS_LIMIT_MOBILE
-    ) {
+    public function __construct() {
         parent::__construct(
-            maxBuffer: 4.0,
-            failBuffer: 4.0,
-            trustDuration: -1
+            maxBuffer: 5.0,
+            failBuffer: 2.0,
+            trustDuration: 200 // 10 second decay
         );
-
-        $this->leftCPSLimit = $leftCPSLimit;
-        $this->rightCPSLimit = $rightCPSLimit;
-        $this->leftCPSLimitMobile = $leftCPSLimitMobile;
-        $this->rightCPSLimitMobile = $rightCPSLimitMobile;
     }
 
     public function getName(): string {
@@ -63,84 +50,68 @@ class AutoclickerA extends Detection {
     }
 
     public function getMaxViolations(): float {
-        return 20.0;
+        return 15.0;
     }
 
     /**
-     * Process click data and check for autoclicker
+     * Process CPS check on each tick with clicks
      *
      * @param OomphPlayer $player The player to check
-     * @param bool $leftClick Whether left click occurred this tick
-     * @param bool $rightClick Whether right click occurred this tick
+     * @param bool $leftClick Whether left click occurred
+     * @param bool $rightClick Whether right click occurred
      */
-    public function process(OomphPlayer $player, bool $leftClick, bool $rightClick): void {
-        // Get player's click tracking component
+    public function process(OomphPlayer $player, bool $leftClick, bool $rightClick = false): void {
         $clicks = $player->getClicksComponent();
+        $isMobile = $player->isMobileDevice();
+        $maxCPS = $isMobile ? self::MAX_CPS_MOBILE : self::MAX_CPS;
 
-        // Update click delays and CPS
-        if ($leftClick) {
-            $clicks->incrementLeftClicks();
-        }
-        if ($rightClick) {
-            $clicks->incrementRightClicks();
-        }
-
-        // Get current CPS values
         $leftCPS = $clicks->getLeftCPS();
         $rightCPS = $clicks->getRightCPS();
 
-        // Determine limits based on device type
-        $isMobile = $player->isMobileDevice();
-        $leftLimit = $isMobile ? $this->leftCPSLimitMobile : $this->leftCPSLimit;
-        $rightLimit = $isMobile ? $this->rightCPSLimitMobile : $this->rightCPSLimit;
-
         // Check left click CPS
-        if ($leftCPS > $leftLimit) {
-            $this->fail($player, 1.0, [
-                'left_cps' => $leftCPS,
-                'limit' => $leftLimit
-            ]);
-            return;
+        if ($leftCPS > $maxCPS) {
+            $this->leftViolationTicks++;
+
+            if ($this->leftViolationTicks >= self::VIOLATION_TICK_THRESHOLD) {
+                $this->fail($player, 1.0, [
+                    'click_type' => 'left',
+                    'cps' => $leftCPS,
+                    'max_allowed' => $maxCPS,
+                    'sustained_ticks' => $this->leftViolationTicks
+                ]);
+            }
+        } else {
+            // Decay violation ticks slowly
+            $this->leftViolationTicks = max(0, $this->leftViolationTicks - 1);
         }
 
         // Check right click CPS
-        if ($rightCPS > $rightLimit) {
-            $this->fail($player, 1.0, [
-                'right_cps' => $rightCPS,
-                'limit' => $rightLimit
-            ]);
-            return;
+        if ($rightCPS > $maxCPS) {
+            $this->rightViolationTicks++;
+
+            if ($this->rightViolationTicks >= self::VIOLATION_TICK_THRESHOLD) {
+                $this->fail($player, 1.0, [
+                    'click_type' => 'right',
+                    'cps' => $rightCPS,
+                    'max_allowed' => $maxCPS,
+                    'sustained_ticks' => $this->rightViolationTicks
+                ]);
+            }
+        } else {
+            // Decay violation ticks slowly
+            $this->rightViolationTicks = max(0, $this->rightViolationTicks - 1);
         }
 
-        // Player is clicking at legitimate rate
-        $this->pass(0.1);
+        // Decay buffer if both are fine
+        if ($leftCPS <= $maxCPS && $rightCPS <= $maxCPS) {
+            $this->pass(0.05);
+        }
     }
 
     /**
-     * Get left CPS limit for desktop
+     * Called each tick for decay
      */
-    public function getLeftCPSLimit(): int {
-        return $this->leftCPSLimit;
-    }
-
-    /**
-     * Get right CPS limit for desktop
-     */
-    public function getRightCPSLimit(): int {
-        return $this->rightCPSLimit;
-    }
-
-    /**
-     * Get left CPS limit for mobile
-     */
-    public function getLeftCPSLimitMobile(): int {
-        return $this->leftCPSLimitMobile;
-    }
-
-    /**
-     * Get right CPS limit for mobile
-     */
-    public function getRightCPSLimitMobile(): int {
-        return $this->rightCPSLimitMobile;
+    public function tick(OomphPlayer $player): void {
+        $this->pass(0.01);
     }
 }

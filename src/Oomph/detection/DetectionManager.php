@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Oomph\detection;
 
+use Oomph\detection\movement\GroundSpoofA;
+use Oomph\detection\movement\MovementA;
+use Oomph\detection\movement\NoSlowA;
+use Oomph\detection\movement\TimerA;
+use Oomph\detection\movement\VelocityA;
 use Oomph\player\OomphPlayer;
 
 /**
@@ -58,13 +63,36 @@ class DetectionManager {
     /**
      * Run all detections for the player
      * Note: Individual detections will be triggered from specific packet handlers
-     * This method is for any global/periodic checks
+     * This method is for any global/periodic tick-based checks
      *
      * @param OomphPlayer $player The player to check
      */
     public function runAll(OomphPlayer $player): void {
-        // Individual detections are triggered from packet handlers
-        // This could be used for periodic checks or cleanup
+        // Run tick-based movement checks
+        $movementA = $this->get("MovementA");
+        if ($movementA instanceof MovementA) {
+            $movementA->tick($player);
+        }
+
+        $timerA = $this->get("TimerA");
+        if ($timerA instanceof TimerA) {
+            $timerA->tick($player);
+        }
+
+        $groundSpoofA = $this->get("GroundSpoofA");
+        if ($groundSpoofA instanceof GroundSpoofA) {
+            $groundSpoofA->tick($player);
+        }
+
+        $velocityA = $this->get("VelocityA");
+        if ($velocityA instanceof VelocityA) {
+            $velocityA->tick($player);
+        }
+
+        $noSlowA = $this->get("NoSlowA");
+        if ($noSlowA instanceof NoSlowA) {
+            $noSlowA->tick($player);
+        }
     }
 
     /**

@@ -8,7 +8,11 @@ use Oomph\Main;
 use Oomph\player\PlayerManager;
 use Oomph\player\OomphPlayer;
 use Oomph\entity\TrackedEntity;
+use Oomph\detection\combat\AutoclickerA;
 use Oomph\detection\combat\AutoclickerB;
+use Oomph\detection\combat\AutoclickerC;
+use Oomph\detection\combat\AutoclickerD;
+use Oomph\detection\combat\AutoclickerE;
 use Oomph\detection\combat\AimA;
 use Oomph\detection\combat\KillauraA;
 use Oomph\detection\combat\ReachA;
@@ -21,7 +25,11 @@ use Oomph\detection\packet\BadPacketD;
 use Oomph\detection\packet\BadPacketE;
 use Oomph\detection\packet\BadPacketF;
 use Oomph\detection\packet\BadPacketG;
+use Oomph\detection\movement\GroundSpoofA;
 use Oomph\detection\movement\InvMoveA;
+use Oomph\detection\movement\NoSlowA;
+use Oomph\detection\movement\TimerA;
+use Oomph\detection\movement\VelocityA;
 use Oomph\detection\world\ScaffoldA;
 use pocketmine\event\Listener;
 use pocketmine\event\server\DataPacketReceiveEvent;
@@ -152,10 +160,34 @@ class PacketListener implements Listener {
             $aimA->process($oomphPlayer);
         }
 
-        // AutoclickerB: Check click timing consistency (left and right clicks)
+        // AutoclickerA: Check CPS limits (25 CPS max)
+        $autoclickerA = $dm->get("AutoclickerA");
+        if ($autoclickerA instanceof AutoclickerA) {
+            $autoclickerA->process($oomphPlayer, $leftClick);
+        }
+
+        // AutoclickerB: Check click timing consistency (long-term pattern)
         $autoclickerB = $dm->get("AutoclickerB");
         if ($autoclickerB instanceof AutoclickerB) {
             $autoclickerB->process($oomphPlayer, $leftClick);
+        }
+
+        // AutoclickerC: Check distribution (kurtosis/skewness/entropy)
+        $autoclickerC = $dm->get("AutoclickerC");
+        if ($autoclickerC instanceof AutoclickerC) {
+            $autoclickerC->process($oomphPlayer, $leftClick);
+        }
+
+        // AutoclickerD: Check sequence patterns (runs test/autocorrelation)
+        $autoclickerD = $dm->get("AutoclickerD");
+        if ($autoclickerD instanceof AutoclickerD) {
+            $autoclickerD->process($oomphPlayer, $leftClick);
+        }
+
+        // AutoclickerE: Check burst patterns (cross-burst consistency)
+        $autoclickerE = $dm->get("AutoclickerE");
+        if ($autoclickerE instanceof AutoclickerE) {
+            $autoclickerE->process($oomphPlayer, $leftClick);
         }
 
         // BadPacketE: Validate moveVec is within [-1.001, 1.001]
@@ -186,6 +218,49 @@ class PacketListener implements Listener {
             );
             $invMoveA->onPlayerAuthInput($oomphPlayer, $impulse);
         }
+
+        // === New Movement Detections ===
+
+        // TimerA: Rate limit inputs per tick
+        $timerA = $dm->get("TimerA");
+        if ($timerA instanceof TimerA) {
+            $timerA->onInput($oomphPlayer);
+        }
+
+        // Extract ground state from input flags
+        // Note: Bedrock sends ground state in the position Y coordinate (implicit)
+        // We can infer it from simulation or check specific flags
+        $clientOnGround = $movement->isOnGround();
+
+        // Update movement state flags from packet
+        $isSneaking = $inputFlags->get(PlayerAuthInputFlags::SNEAKING);
+        $isSprinting = $inputFlags->get(PlayerAuthInputFlags::SPRINTING);
+        $isJumping = $inputFlags->get(PlayerAuthInputFlags::JUMPING);
+        $movement->setSneaking($isSneaking);
+        $movement->setSprinting($isSprinting);
+        $movement->setJumping($isJumping);
+
+        // GroundSpoofA: Validate ground state claims
+        $groundSpoofA = $dm->get("GroundSpoofA");
+        if ($groundSpoofA instanceof GroundSpoofA) {
+            $groundSpoofA->check($oomphPlayer, $clientOnGround);
+        }
+
+        // VelocityA: Validate velocity matches simulation
+        $velocityA = $dm->get("VelocityA");
+        if ($velocityA instanceof VelocityA) {
+            $velocityA->check($oomphPlayer);
+        }
+
+        // NoSlowA: Check for noslow hacks
+        // Check if player is using an item (eating/drinking/blocking)
+        $isUsingItem = $inputFlags->get(PlayerAuthInputFlags::START_USING_ITEM) ||
+                       $inputFlags->get(PlayerAuthInputFlags::PERFORM_ITEM_INTERACTION);
+        $noSlowA = $dm->get("NoSlowA");
+        if ($noSlowA instanceof NoSlowA) {
+            // Note: We check sneaking through NoSlowA as well
+            $noSlowA->check($oomphPlayer, $isUsingItem, false, false);
+        }
     }
 
     private function handleInventoryTransaction(InventoryTransactionPacket $packet, OomphPlayer $oomphPlayer): void {
@@ -213,10 +288,22 @@ class PacketListener implements Listener {
                 $clicks = $oomphPlayer->getClicksComponent();
                 $clicks->incrementRightClicks();
 
+                // AutoclickerA: Check right click CPS limits
+                $autoclickerA = $dm->get("AutoclickerA");
+                if ($autoclickerA instanceof AutoclickerA) {
+                    $autoclickerA->process($oomphPlayer, false, true);
+                }
+
                 // AutoclickerB: Check right click consistency for block placement
                 $autoclickerB = $dm->get("AutoclickerB");
                 if ($autoclickerB instanceof AutoclickerB) {
                     $autoclickerB->process($oomphPlayer, false, true);
+                }
+
+                // AutoclickerE: Check right click burst patterns
+                $autoclickerE = $dm->get("AutoclickerE");
+                if ($autoclickerE instanceof AutoclickerE) {
+                    $autoclickerE->process($oomphPlayer, false, true);
                 }
 
                 // ScaffoldA: Check for zero click position on block clicks
