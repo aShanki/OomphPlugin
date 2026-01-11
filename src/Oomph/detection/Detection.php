@@ -154,9 +154,18 @@ abstract class Detection {
      * Log a message to console
      */
     protected function logToConsole(string $message): void {
+        $plugin = \Oomph\Main::getInstance();
+        $config = $plugin->getConfig();
+        $enabledRaw = $config->getNested('logging.console_flags', true);
+        $enabled = is_bool($enabledRaw) ? $enabledRaw : true;
+        if (!$enabled) {
+            return;
+        }
+
         // Use error_log for console output in PocketMine
         error_log($message);
     }
+
 
     /**
      * Decay buffer (called when player behaves legitimately)
