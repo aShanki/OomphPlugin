@@ -15,6 +15,7 @@ use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\player\PlayerMoveEvent;
 use pocketmine\event\player\PlayerQuitEvent;
 use pocketmine\player\Player;
+use pocketmine\player\GameMode;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
 
 class PlayerListener implements Listener {
@@ -92,6 +93,12 @@ class PlayerListener implements Listener {
 
     public function onPlayerMove(PlayerMoveEvent $event): void {
         $player = $event->getPlayer();
+
+        // Ignore players not in survival mode
+        if ($player->getGamemode() !== GameMode::SURVIVAL) {
+            return;
+        }
+
         $oomphPlayer = $this->playerManager->get($player);
 
         if ($oomphPlayer === null) {
@@ -111,6 +118,11 @@ class PlayerListener implements Listener {
         $entity = $event->getEntity();
 
         if (!$damager instanceof Player) {
+            return;
+        }
+
+        // Ignore players not in survival mode
+        if ($damager->getGamemode() !== GameMode::SURVIVAL) {
             return;
         }
 

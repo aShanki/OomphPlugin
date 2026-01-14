@@ -48,6 +48,7 @@ use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
 use pocketmine\network\mcpe\protocol\types\inventory\stackrequest\CreativeCreateStackRequestAction;
 use pocketmine\Server;
 use pocketmine\entity\Living;
+use pocketmine\player\GameMode;
 
 class PacketListener implements Listener {
 
@@ -65,6 +66,11 @@ class PacketListener implements Listener {
         $player = $event->getOrigin()->getPlayer();
 
         if ($player === null) {
+            return;
+        }
+
+        // Ignore players not in survival mode (spectator, creative, adventure)
+        if ($player->getGamemode() !== GameMode::SURVIVAL) {
             return;
         }
 
