@@ -6,7 +6,7 @@
 # This keeps sensitive URLs out of the codebase
 webhook:
   # Whether to send notifications for every flag (true) or only max violations (false)
-  notify_all_flags: true
+  notify_all_flags: false
 
   # Minimum violation level to trigger webhook notification (0 = all violations)
   min_violation_level: 0
@@ -15,4 +15,3 @@ webhook:
 logging:
   # Log every detection flag to console (very spammy, can cause lag)
   console_flags: false
-

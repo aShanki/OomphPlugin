@@ -86,6 +86,7 @@ abstract class Detection {
         }
 
         // Calculate violation increment based on trust duration
+        $previousViolations = $this->violations;
         $increment = 1.0;
         if ($this->trustDuration > 0) {
             $serverTick = $player->getServerTick();
@@ -127,7 +128,9 @@ abstract class Detection {
         ));
 
         // Check if max violations reached (log only, no kick)
-        $isMaxViolation = $this->violations >= $this->getMaxViolations();
+        $maxViolations = $this->getMaxViolations();
+        $isMaxViolation = $this->violations >= $maxViolations;
+        $isNewMaxViolation = $isMaxViolation && $previousViolations < $maxViolations;
         if ($isMaxViolation) {
             $this->logToConsole(sprintf(
                 "[Oomph] %s reached max violations for %s - would be punished (Unfair Advantage)",
@@ -142,11 +145,12 @@ abstract class Detection {
             $this->getName(),
             $this->getType(),
             $this->violations,
-            $this->getMaxViolations(),
+            $maxViolations,
             $this->buffer,
             $this->maxBuffer,
             $debugData,
-            $isMaxViolation
+            $isMaxViolation,
+            $isNewMaxViolation
         );
     }
 

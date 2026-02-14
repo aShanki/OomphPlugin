@@ -46,20 +46,19 @@ class WebhookNotifier {
     /**
      * Check if we should notify for this violation level
      */
-    public static function shouldNotify(float $violationLevel, bool $isMaxViolation): bool {
+    public static function shouldNotify(float $violationLevel, bool $isMaxViolation, bool $isNewMaxViolation): bool {
         if (!self::isEnabled()) {
             return false;
         }
 
         if ($isMaxViolation) {
-            return true;
+            if ($isNewMaxViolation) {
+                return true;
+            }
+            return self::$notifyAllFlags;
         }
 
-        if (!self::$notifyAllFlags) {
-            return false;
-        }
-
-        return $violationLevel >= self::$minViolationLevel;
+        return self::$notifyAllFlags && $violationLevel >= self::$minViolationLevel;
     }
 
     /**
@@ -91,9 +90,10 @@ class WebhookNotifier {
         float $buffer,
         float $maxBuffer,
         array $debugData,
-        bool $isMaxViolation
+        bool $isMaxViolation,
+        bool $isNewMaxViolation
     ): void {
-        if (!self::shouldNotify($violations, $isMaxViolation)) {
+        if (!self::shouldNotify($violations, $isMaxViolation, $isNewMaxViolation)) {
             return;
         }
 

@@ -78,8 +78,8 @@ class Main extends PluginBase implements Listener {
         $webhookUrlEnv = getenv("OOMPH_WEBHOOK_URL");
         $webhookUrl = is_string($webhookUrlEnv) && $webhookUrlEnv !== "" ? $webhookUrlEnv : "";
 
-        $notifyAllFlagsRaw = $config->getNested("webhook.notify_all_flags", true);
-        $notifyAllFlags = is_bool($notifyAllFlagsRaw) ? $notifyAllFlagsRaw : true;
+        $notifyAllFlagsRaw = $config->getNested("webhook.notify_all_flags", false);
+        $notifyAllFlags = is_bool($notifyAllFlagsRaw) ? $notifyAllFlagsRaw : false;
 
         $minViolationLevelRaw = $config->getNested("webhook.min_violation_level", 0);
         $minViolationLevel = is_int($minViolationLevelRaw) ? $minViolationLevelRaw : 0;
